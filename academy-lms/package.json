@@ -1,0 +1,12 @@
+{
+  "name": "academy-lms",
+  "version": "1.0.0",
+  "description": "Moodle LMS adapter and curriculum catalog engine for PISO Academy",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}

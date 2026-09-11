@@ -1,0 +1,12 @@
+{
+  "name": "academy-challenges",
+  "version": "1.0.0",
+  "description": "Automated coding challenges and test evaluation harness for PISO Academy",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "test": "node src/test-runner.js"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}

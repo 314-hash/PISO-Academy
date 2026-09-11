@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # PISO Academy Web Cockpit & Lab
+  academy-web:
+    build:
+      context: ../academy-web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_PISO_RPC_URL=https://piso-rpc-dev.loca.lt
+      - VITE_PISO_CHAIN_ID=2026001
+      - VITE_PISO_EXPLORER_URL=https://piso-blockchain.vercel.app/explorer
+    restart: unless-stopped
+
+  # PISO Developer Documentation (Docusaurus)
+  academy-docs:
+    build:
+      context: ../academy-docs
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+
+  # Moodle LMS (For production accredited course delivery)
+  academy-moodle:
+    image: bitnami/moodle:latest
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    environment:
+      - MOODLE_DATABASE_HOST=academy-moodle-db
+      - MOODLE_DATABASE_PORT_NUMBER=3306
+      - MOODLE_DATABASE_USER=bn_moodle
+      - MOODLE_DATABASE_NAME=bitnami_moodle
+      - ALLOW_EMPTY_PASSWORD=yes
+    depends_on:
+      - academy-moodle-db
+    restart: unless-stopped
+
+  academy-moodle-db:
+    image: bitnami/mariadb:latest
+    environment:
+      - MARIADB_USER=bn_moodle
+      - MARIADB_DATABASE=bitnami_moodle
+      - ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - moodle_db_data:/bitnami/mariadb
+    restart: unless-stopped
+
+volumes:
+  moodle_db_data:

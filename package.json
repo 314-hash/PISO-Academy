@@ -1,0 +1,33 @@
+{
+  "name": "piso-academy-monorepo",
+  "version": "1.0.0",
+  "description": "PISO Academy — Open-Source Filipino Blockchain/Web3 Developer Academy and Builder Ecosystem powered by PISO Chain",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "academy-web",
+    "academy-docs",
+    "academy-challenges",
+    "academy-lms"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=academy-web",
+    "dev:docs": "npm run start --workspace=academy-docs",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "contracts:test": "cd academy-contracts && forge test",
+    "contracts:build": "cd academy-contracts && forge build"
+  },
+  "keywords": [
+    "piso-chain",
+    "solidity",
+    "web3",
+    "developer-education",
+    "filipino-builders",
+    "blockchain",
+    "foundry",
+    "scaffold-eth"
+  ],
+  "author": "PISO Academy Open-Source Contributors",
+  "license": "MIT"
+}
