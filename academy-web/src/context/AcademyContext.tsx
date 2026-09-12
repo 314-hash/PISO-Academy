@@ -5,7 +5,7 @@ import { WalletService, WalletState } from '../services/walletService';
 import { CertificateService, VerifiedCertificate } from '../services/certificateService';
 import { ContractDeployer, DeploymentReceipt } from '../services/contractDeployer';
 
-export type NavView = 'home' | 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'img2threejs' | 'worldmap';
+export type NavView = 'home' | 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'img2threejs' | 'worldmap' | 'chat';
 
 export type AvatarSkinId = 'agila' | 'panday' | 'babaylan' | 'jeepney' | 'sentinel';
 

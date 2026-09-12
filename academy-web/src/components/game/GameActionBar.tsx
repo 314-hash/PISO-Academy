@@ -14,6 +14,7 @@ import {
   Box,
   Globe,
   Key,
+  MessageSquare,
 } from 'lucide-react';
 
 interface GameActionBarProps {
@@ -58,6 +59,7 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
     { key: '7', num: '7', label: 'Avatar', onClick: () => onOpenHangar?.(), isActive: false, icon: <User className="w-5 h-5 text-amber-400" /> },
     { key: '8', num: '8', label: 'img23D', onClick: () => onSelectView('img2threejs'), isActive: activeView === 'img2threejs', icon: <Box className="w-5 h-5" /> },
     { key: '9', num: '9', label: 'World Map', onClick: () => onSelectView('worldmap'), isActive: activeView === 'worldmap', icon: <Globe className="w-5 h-5 text-cyan-400" /> },
+    { key: 'c', num: 'C', label: 'P2P Chat', onClick: () => onSelectView('chat'), isActive: activeView === 'chat', icon: <MessageSquare className="w-5 h-5 text-purple-400" /> },
   ];
 
   // Hotkey listener (1-8, F, M, Q, O, H)
@@ -85,6 +87,9 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
       } else if (e.key.toLowerCase() === 'h' && onOpenTutorial) {
         SoundFX.playClick();
         onOpenTutorial();
+      } else if (e.key.toLowerCase() === 'c') {
+        SoundFX.playClick();
+        onSelectView('chat');
       } else if ((e.key.toLowerCase() === 'k' || (e.key.toLowerCase() === 'w' && (e.ctrlKey || e.altKey))) && onOpenWalletTerminal) {
         SoundFX.playClick();
         onOpenWalletTerminal();

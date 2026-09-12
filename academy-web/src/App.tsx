@@ -11,6 +11,7 @@ import { BuilderProfile } from './components/BuilderProfile';
 import { ProjectDirectory } from './components/ProjectDirectory';
 import { PisoWorldMap3D } from './components/PisoWorldMap3D';
 import { CyberGameEngine } from './components/game/CyberGameEngine';
+import { PisoP2PChatRoom } from './components/game/PisoP2PChatRoom';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export const AppContent: React.FC = () => {
@@ -63,6 +64,11 @@ export const AppContent: React.FC = () => {
             {activeView === 'profile' && <BuilderProfile />}
             {activeView === 'projects' && <ProjectDirectory />}
             {activeView === 'worldmap' && <PisoWorldMap3D />}
+            {activeView === 'chat' && (
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <PisoP2PChatRoom />
+              </div>
+            )}
           </main>
           <Footer />
         </div>

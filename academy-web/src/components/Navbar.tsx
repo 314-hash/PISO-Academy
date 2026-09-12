@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   Gamepad2,
-  Globe
+  Globe,
+  MessageSquare
 } from 'lucide-react';
 import { PISO_NETWORK } from '../pisoConfig';
 import { SoundFX } from '../services/soundFX';
@@ -52,6 +53,7 @@ export const Navbar: React.FC = () => {
     { id: 'verify', label: 'Katunayan', icon: <ShieldCheck className="w-4 h-4" /> },
     { id: 'profile', label: 'Builder Profile', icon: <User className="w-4 h-4" /> },
     { id: 'projects', label: 'Built on PISO', icon: <Award className="w-4 h-4" /> },
+    { id: 'chat', label: '💬 P2P Chat', icon: <MessageSquare className="w-4 h-4 text-purple-400" /> },
   ];
 
   return (

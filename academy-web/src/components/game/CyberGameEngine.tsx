@@ -16,6 +16,7 @@ import { AvatarHangarModal } from './AvatarHangarModal';
 import { DailyQuestsModal } from './DailyQuestsModal';
 import { Img2ThreejsStudio } from './Img2ThreejsStudio';
 import { WalletStudioTerminalModal } from './WalletStudioTerminalModal';
+import { PisoP2PChatRoom } from './PisoP2PChatRoom';
 
 // Content Views
 import { CourseCatalog } from '../CourseCatalog';
@@ -121,6 +122,8 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
         return { title: 'img2threejs 3D Studio', subtitle: 'Procedural Three.js NFT & Asset Sculptor', icon: '💎' };
       case 'worldmap':
         return { title: 'PISO World Map 3D & Ecosystem Rewards', subtitle: 'DePIN 3D Global Blockchain Network (15 Hubs)', icon: '🌍' };
+      case 'chat':
+        return { title: 'PISO P2P MESH CHAT // GUN.JS', subtitle: 'Decentralized Peer-to-Peer Validator Broadcast Network', icon: '💬' };
       default:
         return { title: 'PISO Cyber Cockpit', subtitle: 'New Manila 2090', icon: '₱' };
     }
@@ -346,7 +349,9 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
           {activeWindow === 'projects' && <ProjectDirectory />}
           {activeWindow === 'img2threejs' && <Img2ThreejsStudio />}
           {activeWindow === 'worldmap' && <PisoWorldMap3D />}
+          {activeWindow === 'chat' && <PisoP2PChatRoom onClose={() => setActiveWindow(null)} />}
         </FloatingGameWindow>
+
       )}
 
       {/* 9. NPC Mentor Modal */}
