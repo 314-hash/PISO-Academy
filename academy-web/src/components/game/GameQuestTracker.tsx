@@ -25,11 +25,29 @@ export const GameQuestTracker: React.FC<GameQuestTrackerProps> = ({ onOpenQuest,
   const isChallengePassed = passedChallenges.includes(activeChallenge.id);
   const completedDaily = dailyQuests.filter((q) => q.completed).length;
 
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setCollapsed(false);
+          SoundFX.playClick();
+        }}
+        className="group flex items-center space-x-2 px-3.5 py-2 rounded-2xl bg-[#0B0F17]/90 hover:bg-[#161F30] border border-amber-500/40 hover:border-amber-400 text-amber-300 font-mono text-xs font-bold transition shadow-xl backdrop-blur-md active:scale-95 animate-fade-in"
+        title="Restore Active Quest Tracker"
+      >
+        <Compass className="w-4 h-4 text-amber-400 animate-spin-slow" />
+        <span>QUESTS ({completedDaily}/{dailyQuests.length})</span>
+        <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-white" />
+      </button>
+    );
+  }
+
   return (
-    <div className="w-68 rounded-2xl bg-[#0B0F17]/85 border border-slate-700/80 shadow-2xl backdrop-blur-md overflow-hidden select-none">
+    <div className="w-68 rounded-2xl bg-[#0B0F17]/85 border border-slate-700/80 shadow-2xl backdrop-blur-md overflow-hidden select-none animate-fade-in">
       {/* Header */}
       <div
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={() => setCollapsed(true)}
         className="px-3.5 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between cursor-pointer hover:bg-slate-800/80 transition-colors"
       >
         <div className="flex items-center space-x-2">
@@ -38,8 +56,8 @@ export const GameQuestTracker: React.FC<GameQuestTrackerProps> = ({ onOpenQuest,
             Active Quest & Daily
           </span>
         </div>
-        <button className="text-slate-400 hover:text-white">
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        <button className="text-slate-400 hover:text-white" title="Minimize Quest Tracker">
+          _
         </button>
       </div>
 

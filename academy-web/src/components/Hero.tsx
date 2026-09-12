@@ -10,12 +10,13 @@ import {
   Cpu,
   Layers,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Gamepad2
 } from 'lucide-react';
 import { PISO_NETWORK } from '../pisoConfig';
 
 export const Hero: React.FC = () => {
-  const { setActiveView, setSelectedTrack, tracks } = useAcademy();
+  const { setActiveView, setSelectedTrack, tracks, toggleGameMode } = useAcademy();
 
   return (
     <div className="relative overflow-hidden pt-8 pb-16">
@@ -51,6 +52,14 @@ export const Hero: React.FC = () => {
 
           {/* CTAs */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3.5">
+            <button
+              onClick={() => toggleGameMode()}
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-sm bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-white shadow-[0_0_25px_rgba(168,85,247,0.4)] flex items-center justify-center space-x-2 transition-all transform hover:-translate-y-0.5 border border-purple-400/40"
+            >
+              <Gamepad2 className="w-4 h-4 text-amber-300 animate-pulse" />
+              <span>Pumasok sa 3D Metaverse (Launch Metaverse)</span>
+            </button>
+
             <button
               onClick={() => setActiveView('courses')}
               className="w-full sm:w-auto px-6 py-3.5 rounded-xl font-bold text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-glow flex items-center justify-center space-x-2 transition-all transform hover:-translate-y-0.5"

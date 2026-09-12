@@ -41,6 +41,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
 
   const [currentBlock, setCurrentBlock] = useState(125490);
   const [pulseActive, setPulseActive] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // 3-second block heartbeat simulation
   useEffect(() => {
@@ -54,8 +55,29 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
 
   const gasHpPercent = Math.min(100, Math.max(15, parseFloat(wallet.balance) * 10));
 
+  // Collapsed Top Pull Tab Chip
+  if (isCollapsed) {
+    return (
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 z-40 animate-fade-in">
+        <button
+          type="button"
+          onClick={() => {
+            setIsCollapsed(false);
+            SoundFX.playClick();
+          }}
+          className="px-3.5 py-1 rounded-b-2xl bg-[#0B0F17]/90 hover:bg-[#161F30] border-x border-b border-amber-500/50 text-amber-300 font-mono text-xs font-bold flex items-center space-x-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] backdrop-blur-md active:scale-95"
+          title="Restore Top Status Bar"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          <span>₱ PISO ACADEMY 2090</span>
+          <span className="text-[10px] text-slate-400">▼</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <header className="p-3 bg-[#0B0F17]/90 border-b border-slate-800/80 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 select-none">
+    <header className="p-3 bg-[#0B0F17]/90 border-b border-slate-800/80 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 select-none animate-fade-in">
       {/* Brand & Devnet Status */}
       <div className="flex items-center space-x-3">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-blue-600 to-amber-500 p-0.5 shadow-glow flex items-center justify-center">
@@ -252,6 +274,19 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
             Connect
           </button>
         )}
+
+        {/* Collapse Top Bar Button */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsCollapsed(true);
+            SoundFX.playClick();
+          }}
+          className="p-1.5 rounded-xl bg-slate-900 hover:bg-amber-500 text-slate-400 hover:text-slate-950 border border-slate-700 transition"
+          title="Minimize Top Bar (Unobstruct Top Screen)"
+        >
+          ▲
+        </button>
       </div>
     </header>
   );

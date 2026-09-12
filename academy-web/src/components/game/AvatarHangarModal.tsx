@@ -29,6 +29,13 @@ import {
   Crown,
   Image as ImageIcon,
 } from 'lucide-react';
+import {
+  FILIPINO_ITEMS,
+  RARITY_CONFIG,
+  ItemRarity,
+  ItemSlot,
+  EQUIP_ALL_PRESET,
+} from '../../data/filipinoCultureItems';
 
 interface DroneSkinData {
   id: AvatarSkinId;
@@ -451,11 +458,19 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
     setActiveView,
   } = useAcademy();
 
-  const [activeTab, setActiveTab] = useState<'human' | 'drone'>('human');
+  const [activeTab, setActiveTab] = useState<'human' | 'pinoy' | 'drone'>('pinoy');
+  const [rarityFilter, setRarityFilter] = useState<'all' | ItemRarity>('all');
+  const [slotFilter, setSlotFilter] = useState<'all' | ItemSlot>('all');
   const [localHuman, setLocalHuman] = useState<HumanAvatarConfig>(humanAvatar);
   const [isWalkingPreview, setIsWalkingPreview] = useState<boolean>(true);
   const [customPrompt, setCustomPrompt] = useState<string>(localHuman.aiPrompt || '');
   const [isAnalyzingImage, setIsAnalyzingImage] = useState<boolean>(false);
+
+  const filteredPinoyItems = FILIPINO_ITEMS.filter((item) => {
+    if (rarityFilter !== 'all' && item.rarity !== rarityFilter) return false;
+    if (slotFilter !== 'all' && item.slot !== slotFilter) return false;
+    return true;
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -861,8 +876,26 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
           </div>
         </div>
 
-        {/* Tab Switcher: Humanoid vs Drone */}
+        {/* Tab Switcher: Humanoid vs Pinoy vs Drone */}
         <div className="relative z-20 flex border-b border-slate-800 bg-[#0B0F17] px-6">
+          <button
+            onClick={() => {
+              SoundFX.playClick();
+              setActiveTab('pinoy');
+            }}
+            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-mono font-bold transition-all border-b-2 ${
+              activeTab === 'pinoy'
+                ? 'border-purple-400 text-purple-400 bg-purple-400/10'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-purple-400" />
+            <span>🇵🇭 Pinoy Gear & Superpowers</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-mono font-black border border-rose-500/40 animate-pulse">
+              NEW
+            </span>
+          </button>
+
           <button
             onClick={() => {
               SoundFX.playClick();
@@ -875,7 +908,7 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
             }`}
           >
             <User className="w-4 h-4" />
-            <span>👤 AI Humanoid Avatar & Uploading Logic</span>
+            <span>👤 AI Humanoid Avatar & Upload</span>
           </button>
 
           <button
@@ -1526,6 +1559,280 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
                   <Check className="w-4 h-4" />
                   <span>I-save at Isara (Save & Walk in 3D World) [E]</span>
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Content Body: Pinoy Cultural Gear & Anime Superpowers */}
+        {activeTab === 'pinoy' && (
+          <div className="relative z-20 flex-1 overflow-hidden flex flex-col md:flex-row">
+            {/* Left 3D Humanoid Preview with Live Walking Rig and Superpower Test Button */}
+            <div className="w-full md:w-84 border-b md:border-b-0 md:border-r border-slate-800 bg-[#070A10] relative flex flex-col items-center justify-between p-4 shrink-0">
+              <div className="w-full flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl p-1.5 mb-2 font-mono text-[11px]">
+                <span className="text-purple-400 font-bold">PINOY EQUIPPED 3D PREVIEW</span>
+                <span className="text-[10px] text-slate-400">Live 3D Model</span>
+              </div>
+
+              {/* 3D Canvas Preview */}
+              <div className="w-full h-60 rounded-xl overflow-hidden border border-slate-800/80 relative shadow-inner">
+                <HumanoidPreviewCanvas config={localHuman} isWalking={isWalkingPreview} />
+              </div>
+
+              {/* Equipped Summary Pills */}
+              <div className="w-full mt-2 p-2 rounded-xl bg-slate-950/70 border border-slate-800 text-[10px] font-mono space-y-1">
+                <div className="flex justify-between text-slate-400">
+                  <span>Sandata (Weapon):</span>
+                  <span className="text-amber-300 font-bold truncate max-w-[130px]">
+                    {FILIPINO_ITEMS.find((i) => i.id === localHuman.equippedPinoyItems?.weapon)?.name || 'None'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Headwear:</span>
+                  <span className="text-cyan-300 font-bold truncate max-w-[130px]">
+                    {FILIPINO_ITEMS.find((i) => i.id === localHuman.equippedPinoyItems?.headwear)?.name || 'None'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Back/Aura:</span>
+                  <span className="text-purple-300 font-bold truncate max-w-[130px]">
+                    {FILIPINO_ITEMS.find((i) => i.id === localHuman.equippedPinoyItems?.back)?.name || 'None'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Superpower:</span>
+                  <span className="text-rose-300 font-bold uppercase">
+                    {localHuman.equippedPinoyItems?.superpower || 'kamehameha'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Test Super Power Action Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const power = localHuman.equippedPinoyItems?.superpower || 'kamehameha';
+                  window.dispatchEvent(
+                    new CustomEvent('piso-trigger-superpower', { detail: { powerId: power } })
+                  );
+                  setNotification({
+                    message: `💥 Triggered Anime Power: ${power.toUpperCase()}! Look at your 3D world!`,
+                    type: 'success',
+                  });
+                }}
+                className="w-full mt-2 py-2 rounded-xl bg-gradient-to-r from-rose-600 via-purple-600 to-amber-500 hover:brightness-110 text-white font-mono text-xs font-black uppercase tracking-wider shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all flex items-center justify-center space-x-1.5 active:scale-95"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                <span>Subukan ang Super Power (Test Move)</span>
+              </button>
+
+              {/* Save & Return to Metaverse */}
+              <button
+                type="button"
+                onClick={handleSaveHumanAvatar}
+                className="w-full mt-2 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono text-xs font-bold uppercase tracking-wider shadow-sm transition flex items-center justify-center space-x-1"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>I-save at Isara [E]</span>
+              </button>
+            </div>
+
+            {/* Right Scrollable Catalog */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {/* Quick God-Mode / All-Items Toggle */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-purple-500/15 to-cyan-500/15 border border-amber-400/40">
+                <div className="flex items-center space-x-2">
+                  <span className="text-xl">👑</span>
+                  <div>
+                    <h5 className="text-xs font-bold text-white leading-tight">God-Mode Pinoy Loadout</h5>
+                    <p className="text-[10px] text-slate-300">Equip weapon, shield, salakot, towel, crown, wings, sign, agimat, and tabo all at once!</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isCurrentlyAll = !!localHuman.equippedPinoyItems?.allEquipped;
+                    setLocalHuman((prev) => ({
+                      ...prev,
+                      equippedPinoyItems: isCurrentlyAll
+                        ? { superpower: 'kamehameha' }
+                        : { ...EQUIP_ALL_PRESET, allEquipped: true },
+                    }));
+                    SoundFX.playLevelUp();
+                  }}
+                  className={`px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 shrink-0 ${
+                    localHuman.equippedPinoyItems?.allEquipped
+                      ? 'bg-amber-400 text-slate-950 hover:bg-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.5)]'
+                      : 'bg-slate-900/80 text-amber-300 hover:text-white border border-amber-500/40'
+                  }`}
+                >
+                  <span>{localHuman.equippedPinoyItems?.allEquipped ? '✓ EQUIPPED ALL' : '🌟 EQUIP ALL'}</span>
+                </button>
+              </div>
+
+              {/* Rarity Filter Bar */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-[#161F30]/80 p-2 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-mono text-slate-400 font-bold mr-1">RARITY:</span>
+                {(['all', 'common', 'uncommon', 'rare', 'epic', 'legend', 'mythical'] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => {
+                      setRarityFilter(r);
+                      SoundFX.playClick();
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase transition-all ${
+                      rarityFilter === r
+                        ? 'bg-amber-400 text-slate-950 shadow-sm'
+                        : 'bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+
+              {/* Slot Filter Bar */}
+              <div className="flex flex-wrap items-center gap-1.5 bg-[#161F30]/80 p-2 rounded-xl border border-slate-800">
+                <span className="text-[10px] font-mono text-slate-400 font-bold mr-1">SLOT:</span>
+                {(['all', 'weapon', 'headwear', 'outfit', 'back', 'superpower'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      setSlotFilter(s);
+                      SoundFX.playClick();
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase transition-all ${
+                      slotFilter === s
+                        ? 'bg-purple-500 text-white shadow-sm'
+                        : 'bg-slate-900/60 text-slate-400 hover:text-white border border-slate-800'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {/* Items Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {filteredPinoyItems.map((item) => {
+                  const isEquipped =
+                    item.slot === 'weapon'
+                      ? localHuman.equippedPinoyItems?.weapon === item.id
+                      : item.slot === 'headwear'
+                      ? localHuman.equippedPinoyItems?.headwear === item.id
+                      : item.slot === 'back'
+                      ? localHuman.equippedPinoyItems?.back === item.id
+                      : item.slot === 'outfit'
+                      ? localHuman.equippedPinoyItems?.outfit === item.id
+                      : localHuman.equippedPinoyItems?.superpower === item.animeSuperPowerId;
+
+                  const rConf = RARITY_CONFIG[item.rarity];
+
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        boxShadow: isEquipped ? `0 0 20px ${rConf.glow}` : undefined,
+                      }}
+                      className={`p-3.5 rounded-2xl border-2 transition-all flex flex-col justify-between bg-gradient-to-br ${rConf.bg} ${
+                        isEquipped ? rConf.border : 'border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div>
+                        {/* Header: Icon + Name + Rarity Badge */}
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center text-xl shadow-inner">
+                              {item.icon}
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-white leading-tight">{item.name}</h4>
+                              <p className="text-[10px] text-slate-400 italic">{item.filipinoName}</p>
+                            </div>
+                          </div>
+
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-black border uppercase ${rConf.badge}`}>
+                            {item.rarity}
+                          </span>
+                        </div>
+
+                        {/* Tagline & Lore */}
+                        <div className="mt-2 text-[11px] font-mono text-amber-300 font-semibold">{item.tagline}</div>
+                        <p className="mt-1 text-[10px] text-slate-300 leading-relaxed line-clamp-2">{item.lore}</p>
+
+                        {/* Stats */}
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {item.stats.map((st, idx) => (
+                            <span key={idx} className="px-1.5 py-0.5 rounded bg-black/50 border border-slate-700/60 text-[9px] font-mono">
+                              <span className="text-slate-400">{st.label}: </span>
+                              <strong className={st.color}>{st.value}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Bottom Action: Equip Button */}
+                      <div className="mt-3 flex items-center space-x-2 pt-2 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = localHuman.equippedPinoyItems || {};
+                            const updated = { ...cur };
+                            if (item.slot === 'weapon') {
+                              updated.weapon = isEquipped ? undefined : item.id;
+                            } else if (item.slot === 'headwear') {
+                              updated.headwear = isEquipped ? undefined : item.id;
+                            } else if (item.slot === 'back') {
+                              updated.back = isEquipped ? undefined : item.id;
+                            } else if (item.slot === 'outfit') {
+                              updated.outfit = isEquipped ? undefined : item.id;
+                            } else if (item.slot === 'superpower' && item.animeSuperPowerId) {
+                              updated.superpower = isEquipped ? undefined : item.animeSuperPowerId;
+                            }
+                            updateOption({ equippedPinoyItems: updated });
+                            SoundFX.playLevelUp();
+                            setNotification({
+                              message: isEquipped ? `Unequipped "${item.name}"` : `Equipped "${item.name}"!`,
+                              type: 'success',
+                            });
+                          }}
+                          className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-mono font-bold uppercase transition-all flex items-center justify-center space-x-1 ${
+                            isEquipped
+                              ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300 shadow-sm'
+                              : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 hover:border-slate-500'
+                          }`}
+                        >
+                          {isEquipped ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>EQUIPPED</span>
+                            </>
+                          ) : (
+                            <span>EQUIP GEAR</span>
+                          )}
+                        </button>
+
+                        {item.animeSuperPowerId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.dispatchEvent(
+                                new CustomEvent('piso-trigger-superpower', { detail: { powerId: item.animeSuperPowerId } })
+                              );
+                            }}
+                            title="Test this move in 3D"
+                            className="p-1.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-400 text-purple-200 transition active:scale-95"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-amber-300" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

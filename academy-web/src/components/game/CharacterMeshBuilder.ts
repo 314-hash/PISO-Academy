@@ -727,6 +727,345 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
   torsoGroup.add(leftArmGroup);
   torsoGroup.add(rightArmGroup);
 
+  // --- FILIPINO CULTURAL WEAPONS, SHIELDS & ACCESSORIES ---
+  const equippedPinoy = config.equippedPinoyItems;
+  const isAllEquipped = !!equippedPinoy?.allEquipped;
+  const weaponId = equippedPinoy?.weapon;
+  const shieldId = equippedPinoy?.shield;
+  const headwearId = equippedPinoy?.headwear;
+  const towelId = equippedPinoy?.towel;
+  const crownId = equippedPinoy?.crown;
+  const backId = equippedPinoy?.back;
+  const signboardId = equippedPinoy?.signboard;
+  const amuletId = equippedPinoy?.amulet;
+  const taboId = equippedPinoy?.tabo;
+
+  // 1. Kampilan Plasma Blade
+  const attachKampilan = (parent: THREE.Group) => {
+    const bladeGroup = new THREE.Group();
+    bladeGroup.position.set(0, -0.60, 0.1);
+    bladeGroup.rotation.x = Math.PI / 4;
+
+    const hilt = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.25, 8), darkArmorMat);
+    hilt.position.set(0, -0.08, 0);
+    bladeGroup.add(hilt);
+
+    const guard = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.025, 0.05), goldMat);
+    guard.position.set(0, 0.05, 0);
+    bladeGroup.add(guard);
+
+    const bladeMat = new THREE.MeshBasicMaterial({ color: 0x06B6D4 });
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.85, 0.015), bladeMat);
+    blade.position.set(0, 0.48, 0);
+    bladeGroup.add(blade);
+
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 4), bladeMat);
+    tip.position.set(0.02, 0.95, 0);
+    tip.rotation.z = -0.2;
+    bladeGroup.add(tip);
+
+    parent.add(bladeGroup);
+  };
+
+  // 2. Tsinelas (Slipper)
+  const attachTsinelas = (parent: THREE.Group, isHipHolster = false) => {
+    const slipperGroup = new THREE.Group();
+    if (isHipHolster) {
+      slipperGroup.position.set(torsoWidth / 2 + 0.05, 0.12, 0.04);
+      slipperGroup.rotation.set(0, 0, -0.3);
+      slipperGroup.scale.setScalar(0.75);
+    } else {
+      slipperGroup.position.set(0, -0.60, 0.05);
+      slipperGroup.rotation.x = Math.PI / 4;
+      slipperGroup.rotation.y = Math.PI / 6;
+    }
+
+    const soleGeo = new THREE.BoxGeometry(0.13, 0.03, 0.28);
+    const soleMat = new THREE.MeshStandardMaterial({ color: 0x0284C7, roughness: 0.8 });
+    const sole = new THREE.Mesh(soleGeo, soleMat);
+    slipperGroup.add(sole);
+
+    const strapMat = new THREE.MeshStandardMaterial({ color: 0xDC2626, roughness: 0.5 });
+    const strapL = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.13), strapMat);
+    strapL.rotation.z = 0.5;
+    strapL.rotation.x = -0.3;
+    strapL.position.set(-0.03, 0.03, -0.02);
+    slipperGroup.add(strapL);
+
+    const strapR = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.13), strapMat);
+    strapR.rotation.z = -0.5;
+    strapR.rotation.x = -0.3;
+    strapR.position.set(0.03, 0.03, -0.02);
+    slipperGroup.add(strapR);
+
+    parent.add(slipperGroup);
+  };
+
+  // 3. Baguio Walis Tambo
+  const attachWalis = (parent: THREE.Group, isBackSlung = false) => {
+    const broomGroup = new THREE.Group();
+    if (isBackSlung) {
+      broomGroup.position.set(-0.10, 0.35, -0.24);
+      broomGroup.rotation.set(0.2, 0, 0.8);
+      broomGroup.scale.setScalar(0.85);
+    } else {
+      broomGroup.position.set(0, -0.60, 0.1);
+      broomGroup.rotation.x = Math.PI / 3;
+    }
+
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0xD97706, roughness: 0.7 });
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.9, 8), handleMat);
+    handle.position.set(0, -0.15, 0);
+    broomGroup.add(handle);
+
+    const whiskMat = new THREE.MeshStandardMaterial({ color: 0xEAB308, roughness: 0.9 });
+    const whisk = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.45, 6), whiskMat);
+    whisk.rotation.x = Math.PI;
+    whisk.position.set(0, 0.35, 0);
+    whisk.scale.set(1.4, 1.0, 0.3);
+    broomGroup.add(whisk);
+
+    parent.add(broomGroup);
+  };
+
+  // 4. Bathala's Lightning Scepter
+  const attachBathalaScepter = (parent: THREE.Group) => {
+    const scepterGroup = new THREE.Group();
+    scepterGroup.position.set(0, -0.60, 0.1);
+    scepterGroup.rotation.x = Math.PI / 3;
+
+    const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 1.1, 8), goldMat);
+    scepterGroup.add(staff);
+
+    const boltMat = new THREE.MeshBasicMaterial({ color: 0xEF4444 });
+    const bolt = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), boltMat);
+    bolt.position.set(0, 0.58, 0);
+    bolt.scale.set(0.8, 2.5, 0.8);
+    scepterGroup.add(bolt);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.015, 6, 16), new THREE.MeshBasicMaterial({ color: 0xF59E0B }));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(0, 0.58, 0);
+    scepterGroup.add(ring);
+
+    parent.add(scepterGroup);
+  };
+
+  // 5. Karaoke Microphone
+  const attachKaraokeMic = (parent: THREE.Group) => {
+    const micGroup = new THREE.Group();
+    micGroup.position.set(0, -0.60, 0.08);
+    micGroup.rotation.x = Math.PI / 3;
+
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1E293B, metalness: 0.7, roughness: 0.3 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.015, 0.22, 10), bodyMat);
+    micGroup.add(body);
+
+    const meshHead = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 12), new THREE.MeshStandardMaterial({ color: 0xE2E8F0, metalness: 0.9, roughness: 0.2 }));
+    meshHead.position.set(0, 0.12, 0);
+    micGroup.add(meshHead);
+
+    parent.add(micGroup);
+  };
+
+  // 6. Magic Kaldero Lid Aegis Shield (Left Hand)
+  const attachKalderoLid = (parent: THREE.Group) => {
+    const shieldGroup = new THREE.Group();
+    shieldGroup.position.set(0, -0.45, 0.12);
+    shieldGroup.rotation.y = Math.PI / 2;
+
+    const lidMat = new THREE.MeshStandardMaterial({ color: 0xCBD5E1, metalness: 0.85, roughness: 0.2 });
+    const lid = new THREE.Mesh(new THREE.SphereGeometry(0.24, 16, 16, 0, Math.PI * 2, 0, Math.PI / 3), lidMat);
+    shieldGroup.add(lid);
+
+    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 8), darkArmorMat);
+    knob.rotation.x = Math.PI / 2;
+    knob.position.set(0, 0, 0.08);
+    shieldGroup.add(knob);
+
+    parent.add(shieldGroup);
+  };
+
+  // 7. Salakot Bamboo Hat (Head)
+  const attachSalakot = (parent: THREE.Group) => {
+    const salakotGroup = new THREE.Group();
+    salakotGroup.position.set(0, 0.42, 0);
+
+    const salakotMat = new THREE.MeshStandardMaterial({ color: 0xD97706, roughness: 0.85 });
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.44, 0.18, 16), salakotMat);
+    salakotGroup.add(cone);
+
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.015, 6, 20), goldMat);
+    band.rotation.x = Math.PI / 2;
+    band.position.set(0, -0.05, 0);
+    salakotGroup.add(band);
+
+    parent.add(salakotGroup);
+  };
+
+  // 8. Good Morning Towel (Neck & Collar)
+  const attachGoodMorningTowel = (parent: THREE.Group) => {
+    const towelGroup = new THREE.Group();
+    towelGroup.position.set(0, 0.05, 0);
+
+    const towelMat = new THREE.MeshStandardMaterial({ color: 0xF8FAFC, roughness: 0.9 });
+    const neckBand = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.035, 8, 18), towelMat);
+    neckBand.rotation.x = Math.PI / 2;
+    towelGroup.add(neckBand);
+
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, 0.02), towelMat);
+    tail.position.set(0.12, -0.15, 0.22);
+    tail.rotation.z = -0.1;
+    towelGroup.add(tail);
+
+    parent.add(towelGroup);
+  };
+
+  // 9. Datu Maharlika Sun Crown (Crown Halo)
+  const attachDatuCrown = (parent: THREE.Group, floatY = 0.45) => {
+    const crownGroup = new THREE.Group();
+    crownGroup.position.set(0, floatY, 0);
+
+    const baseRing = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.025, 8, 24), goldMat);
+    baseRing.rotation.x = Math.PI / 2;
+    crownGroup.add(baseRing);
+
+    for (let r = 0; r < 8; r++) {
+      const angle = (r / 8) * Math.PI * 2;
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.18, 4), goldMat);
+      spike.position.set(Math.cos(angle) * 0.24, 0.08, Math.sin(angle) * 0.24);
+      spike.rotation.z = -Math.cos(angle) * 0.4;
+      spike.rotation.x = Math.sin(angle) * 0.4;
+      crownGroup.add(spike);
+    }
+
+    parent.add(crownGroup);
+  };
+
+  // 10. Agimat ni Nardong Dikit (Chest Amulet)
+  const attachAgimatAmulet = (parent: THREE.Group) => {
+    const agimatGroup = new THREE.Group();
+    agimatGroup.position.set(0, 0.45, torsoDepth / 2 + 0.03);
+
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.012, 16), goldMat);
+    disc.rotation.x = Math.PI / 2;
+    agimatGroup.add(disc);
+
+    const runeMat = new THREE.MeshBasicMaterial({ color: 0xF59E0B });
+    const rune = new THREE.Mesh(new THREE.RingGeometry(0.025, 0.045, 8), runeMat);
+    rune.position.z = 0.008;
+    agimatGroup.add(rune);
+
+    parent.add(agimatGroup);
+  };
+
+  // 11. Tabo of Holy Cleansing (Hip Dipper)
+  const attachTabo = (parent: THREE.Group) => {
+    const taboGroup = new THREE.Group();
+    taboGroup.position.set(-torsoWidth / 2 - 0.06, 0.10, 0.05);
+    taboGroup.rotation.z = -0.2;
+
+    const taboMat = new THREE.MeshStandardMaterial({ color: 0x06B6D4, roughness: 0.3 });
+    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.11, 12), taboMat);
+    taboGroup.add(bucket);
+
+    const taboHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.12, 8), taboMat);
+    taboHandle.rotation.x = Math.PI / 2;
+    taboHandle.position.set(0, 0.03, -0.07);
+    taboGroup.add(taboHandle);
+
+    parent.add(taboGroup);
+  };
+
+  // 12. Jeepney Route Signboard (Back)
+  const attachJeepneySign = (parent: THREE.Group, offsetZ = -0.22) => {
+    const signGroup = new THREE.Group();
+    signGroup.position.set(0, 0.38, offsetZ);
+    signGroup.rotation.y = Math.PI;
+
+    const boardMat = new THREE.MeshStandardMaterial({ color: 0x1E293B, roughness: 0.4 });
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.22, 0.02), boardMat);
+    signGroup.add(board);
+
+    const frameMat = new THREE.MeshBasicMaterial({ color: 0xF59E0B });
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.24, 0.01), frameMat);
+    frame.position.z = -0.005;
+    signGroup.add(frame);
+
+    parent.add(signGroup);
+  };
+
+  // 13. Sarimanok Prismatic Wings (Back)
+  const attachSarimanokWings = (parent: THREE.Group) => {
+    const wingsGroup = new THREE.Group();
+    wingsGroup.position.set(0, 0.40, -0.20);
+
+    const colors = [0xEF4444, 0xF59E0B, 0x10B981, 0x06B6D4, 0x8B5CF6, 0xEC4899];
+    colors.forEach((col, idx) => {
+      [-1, 1].forEach((dir) => {
+        const feather = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.6 + idx * 0.06, 0.01), new THREE.MeshBasicMaterial({ color: col }));
+        feather.position.set(dir * (0.2 + idx * 0.08), 0.25 - idx * 0.04, -idx * 0.02);
+        feather.rotation.z = -dir * (0.4 + idx * 0.15);
+        wingsGroup.add(feather);
+      });
+    });
+
+    parent.add(wingsGroup);
+  };
+
+  // 14. Bakunawa Dragon Wings (Back)
+  const attachBakunawaWings = (parent: THREE.Group) => {
+    const wingsGroup = new THREE.Group();
+    wingsGroup.position.set(0, 0.40, -0.20);
+
+    const wingMat = new THREE.MeshBasicMaterial({ color: 0x8B5CF6, transparent: true, opacity: 0.85 });
+    [-1, 1].forEach((dir) => {
+      const wing = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.9, 3), wingMat);
+      wing.position.set(dir * 0.5, 0.35, 0);
+      wing.rotation.z = -dir * 0.8;
+      wing.rotation.y = dir * 0.3;
+      wingsGroup.add(wing);
+    });
+
+    parent.add(wingsGroup);
+  };
+
+  // --- ATTACH EQUIPMENT BASED ON CONFIG (ALL-EQUIPPED OR INDIVIDUAL) ---
+  if (isAllEquipped) {
+    // 🌟 FULL GOD-MODE PINOY CULTURE SET: Equip ALL items simultaneously!
+    attachKampilan(rightArmGroup);
+    attachKalderoLid(leftArmGroup);
+    attachSalakot(headGroup);
+    attachDatuCrown(headGroup, 0.58); // Floating celestial sun halo above salakot!
+    attachGoodMorningTowel(headGroup);
+    attachAgimatAmulet(torsoGroup);
+    attachTabo(torsoGroup);
+    attachTsinelas(torsoGroup, true); // Holstered on hip!
+    attachWalis(torsoGroup, true); // Slung across back!
+    attachSarimanokWings(torsoGroup);
+    attachJeepneySign(torsoGroup, -0.26);
+  } else {
+    // Individual slot equipment
+    if (weaponId === 'kampilan-lapulapu') attachKampilan(rightArmGroup);
+    else if (weaponId === 'tsinelas-common') attachTsinelas(rightArmGroup);
+    else if (weaponId === 'walis-tambo-whirlwind') attachWalis(rightArmGroup);
+    else if (weaponId === 'bathala-kilat') attachBathalaScepter(rightArmGroup);
+    else if (weaponId === 'karaoke-mic-stun') attachKaraokeMic(rightArmGroup);
+
+    if (shieldId === 'kaldero-lid-aegis' || weaponId === 'kaldero-lid-aegis') attachKalderoLid(leftArmGroup);
+
+    if (headwearId === 'salakot-solar') attachSalakot(headGroup);
+    else if (headwearId === 'good-morning-towel' || towelId === 'good-morning-towel') attachGoodMorningTowel(headGroup);
+    else if (headwearId === 'datu-sun-crown' || crownId === 'datu-sun-crown') attachDatuCrown(headGroup);
+
+    if (amuletId === 'agimat-anting') attachAgimatAmulet(torsoGroup);
+    if (taboId === 'tabo-cleansing') attachTabo(torsoGroup);
+
+    if (backId === 'sarimanok-wings') attachSarimanokWings(torsoGroup);
+    else if (backId === 'bakunawa-wings') attachBakunawaWings(torsoGroup);
+    else if (backId === 'jeepney-route-sign' || signboardId === 'jeepney-route-sign') attachJeepneySign(torsoGroup);
+  }
+
   // 7. Legs & Greaves (Pivot at hips)
   const hipX = isFemale ? 0.14 : 0.18;
   const legRadiusThigh = isFemale ? 0.08 : 0.1;

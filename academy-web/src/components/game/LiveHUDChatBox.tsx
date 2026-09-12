@@ -23,16 +23,19 @@ import {
 
 interface LiveHUDChatBoxProps {
   onOpenFullChat: () => void;
+  hasTouchControls?: boolean;
 }
 
-export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat }) => {
+export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat, hasTouchControls = false }) => {
   const { wallet, humanAvatar } = useAcademy();
 
   const [rooms, setRooms] = useState<PisoChatRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string>('genesis-council');
   const [messages, setMessages] = useState<PisoChatMessage[]>([]);
   const [inputText, setInputText] = useState<string>('');
-  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  const [isMinimized, setIsMinimized] = useState<boolean>(() => {
+    return hasTouchControls || (typeof window !== 'undefined' && window.innerWidth < 768);
+  });
   const [showRoomDropdown, setShowRoomDropdown] = useState<boolean>(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
@@ -123,7 +126,7 @@ export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat }
   // If minimized, show small glowing cyber notification pill
   if (isMinimized) {
     return (
-      <div className="fixed bottom-24 left-4 z-20">
+      <div className={`fixed z-20 transition-all ${hasTouchControls ? 'bottom-56 left-4' : 'bottom-24 left-4'}`}>
         <button
           type="button"
           onClick={() => {
@@ -150,7 +153,9 @@ export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat }
   }
 
   return (
-    <div className="fixed bottom-24 left-4 z-20 w-80 sm:w-96 flex flex-col rounded-2xl bg-[#0B0F17]/90 border border-slate-700/80 shadow-[0_0_30px_rgba(0,0,0,0.85)] backdrop-blur-md overflow-hidden text-slate-100 select-none">
+    <div className={`fixed z-20 w-[calc(100vw-2rem)] sm:w-96 max-w-sm flex flex-col rounded-2xl bg-[#0B0F17]/95 border border-slate-700/80 shadow-[0_0_30px_rgba(0,0,0,0.85)] backdrop-blur-md overflow-hidden text-slate-100 select-none transition-all ${
+      hasTouchControls ? 'bottom-56 left-4 max-h-[45vh]' : 'bottom-24 left-4'
+    }`}>
       {/* 1. Header Bar */}
       <div className="flex items-center justify-between px-3 py-2 bg-[#161F30]/90 border-b border-slate-800">
         {/* Room Switcher Dropdown */}

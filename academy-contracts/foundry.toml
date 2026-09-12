@@ -7,9 +7,31 @@ optimizer = true
 optimizer_runs = 200
 evm_version = "shanghai"
 
+[profile.l2]
+# Optimized for L2 deployment — smaller bytecode, lower gas
+optimizer_runs = 1000
+
 [rpc_endpoints]
-piso_devnet = "https://piso-rpc-dev.loca.lt"
-piso_local = "http://127.0.0.1:8545"
+# ─── PISO Chain ───────────────────────────────────────────────────
+piso_l2        = "${VITE_PISO_RPC_URL}"
+piso_local     = "http://127.0.0.1:9545"
+piso_devnet    = "https://piso-rpc-dev.loca.lt"
+
+# ─── Ethereum L1 (Sepolia) ────────────────────────────────────────
+sepolia        = "${VITE_SEPOLIA_RPC_URL}"
+sepolia_public = "https://rpc.sepolia.org"
+mainnet        = "${VITE_MAINNET_RPC_URL}"
 
 [etherscan]
-piso_devnet = { key = "na", url = "https://piso-blockchain.vercel.app/api" }
+# ─── PISO Chain Explorer ─────────────────────────────────────────
+piso_l2    = { key = "na", url = "https://piso-blockchain.vercel.app/api" }
+piso_local = { key = "na", url = "https://piso-blockchain.vercel.app/api" }
+
+# ─── Sepolia Etherscan ───────────────────────────────────────────
+sepolia    = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.etherscan.io/api" }
+mainnet    = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/api" }
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = true

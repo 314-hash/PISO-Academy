@@ -15,6 +15,9 @@ import {
   Globe,
   Key,
   MessageSquare,
+  Coins,
+  Skull,
+  Swords,
 } from 'lucide-react';
 
 interface GameActionBarProps {
@@ -42,6 +45,8 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
   onOpenTutorial,
   onOpenWalletTerminal,
 }) => {
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
+
   const actions: {
     key: string;
     num: string;
@@ -59,6 +64,11 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
     { key: '7', num: '7', label: 'Avatar', onClick: () => onOpenHangar?.(), isActive: false, icon: <User className="w-5 h-5 text-amber-400" /> },
     { key: '8', num: '8', label: 'img23D', onClick: () => onSelectView('img2threejs'), isActive: activeView === 'img2threejs', icon: <Box className="w-5 h-5" /> },
     { key: '9', num: '9', label: 'World Map', onClick: () => onSelectView('worldmap'), isActive: activeView === 'worldmap', icon: <Globe className="w-5 h-5 text-cyan-400" /> },
+    { key: 'p', num: 'P', label: 'PPF Physics', onClick: () => onSelectView('ppfstudio'), isActive: activeView === 'ppfstudio', icon: <Box className="w-5 h-5 text-amber-400" /> },
+    { key: 'l', num: 'L', label: 'World Gen', onClick: () => onSelectView('worldgen'), isActive: activeView === 'worldgen', icon: <Globe className="w-5 h-5 text-emerald-400" /> },
+    { key: 'k', num: 'K', label: '₱ Farm & Forge', onClick: () => onSelectView('economy'), isActive: activeView === 'economy', icon: <Coins className="w-5 h-5 text-amber-400" /> },
+    { key: 'j', num: 'J', label: '70M Bounties', onClick: () => onSelectView('bounties'), isActive: activeView === 'bounties', icon: <Skull className="w-5 h-5 text-rose-400" /> },
+    { key: 'u', num: 'U', label: 'PvP Arena', onClick: () => onSelectView('pvp'), isActive: activeView === 'pvp', icon: <Swords className="w-5 h-5 text-red-400" /> },
     { key: 'c', num: 'C', label: 'P2P Chat', onClick: () => onSelectView('chat'), isActive: activeView === 'chat', icon: <MessageSquare className="w-5 h-5 text-purple-400" /> },
   ];
 
@@ -90,7 +100,19 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
       } else if (e.key.toLowerCase() === 'c') {
         SoundFX.playClick();
         onSelectView('chat');
-      } else if ((e.key.toLowerCase() === 'k' || (e.key.toLowerCase() === 'w' && (e.ctrlKey || e.altKey))) && onOpenWalletTerminal) {
+      } else if (e.key.toLowerCase() === 'u') {
+        SoundFX.playClick();
+        onSelectView('pvp');
+      } else if (e.key.toLowerCase() === 'l') {
+        SoundFX.playClick();
+        onSelectView('worldgen');
+      } else if (e.key.toLowerCase() === 'k') {
+        SoundFX.playClick();
+        onSelectView('economy');
+      } else if (e.key.toLowerCase() === 'j') {
+        SoundFX.playClick();
+        onSelectView('bounties');
+      } else if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 'w' && onOpenWalletTerminal) {
         SoundFX.playClick();
         onOpenWalletTerminal();
       }
@@ -100,8 +122,27 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [actions, onRequestFaucet, onToggleMute, onOpenQuests, onOpenOptions, onOpenTutorial, onOpenWalletTerminal]);
 
+  if (isCollapsed) {
+    return (
+      <div className="flex justify-center animate-fade-in">
+        <button
+          type="button"
+          onClick={() => {
+            setIsCollapsed(false);
+            SoundFX.playClick();
+          }}
+          className="px-4 py-1.5 rounded-t-2xl bg-[#0B0F17]/90 hover:bg-[#161F30] border-x border-t border-cyan-500/50 text-cyan-300 font-mono text-xs font-bold flex items-center space-x-2 shadow-[0_0_20px_rgba(6,182,212,0.3)] backdrop-blur-md active:scale-95"
+          title="Restore Bottom App Dock"
+        >
+          <span>▲ APPS DOCK</span>
+          <span className="text-[10px] text-slate-400 font-mono">[1-9, P]</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center space-x-2 p-2 rounded-2xl bg-[#0B0F17]/90 border border-slate-700/80 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-md">
+    <div className="flex items-center space-x-2 p-2 rounded-2xl bg-[#0B0F17]/90 border border-slate-700/80 shadow-[0_0_30px_rgba(0,0,0,0.8)] backdrop-blur-md animate-fade-in">
       {/* 1-8 Action Buttons */}
       {actions.map((act) => {
         return (
@@ -171,6 +212,19 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
         className="w-10 h-14 sm:w-10 sm:h-16 rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all"
       >
         {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-blue-400" />}
+      </button>
+
+      {/* Minimize Dock Button */}
+      <button
+        type="button"
+        onClick={() => {
+          setIsCollapsed(true);
+          SoundFX.playClick();
+        }}
+        title="Minimize Apps Dock (Clear Bottom Screen)"
+        className="w-7 h-14 sm:w-7 sm:h-16 rounded-xl bg-slate-900/80 hover:bg-cyan-500 text-slate-400 hover:text-slate-950 border border-slate-700 flex items-center justify-center text-xs font-bold transition-all"
+      >
+        ▼
       </button>
     </div>
   );

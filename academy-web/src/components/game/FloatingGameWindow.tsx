@@ -8,6 +8,7 @@ interface FloatingGameWindowProps {
   icon?: string;
   isOpen: boolean;
   onClose: () => void;
+  onMinimize?: () => void;
   children: React.ReactNode;
 }
 
@@ -17,11 +18,37 @@ export const FloatingGameWindow: React.FC<FloatingGameWindowProps> = ({
   icon,
   isOpen,
   onClose,
+  onMinimize,
   children,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   if (!isOpen) return null;
+
+  // Minimized Floating Cyber Taskbar Chip
+  if (isMinimized) {
+    return (
+      <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 animate-fade-in">
+        <button
+          type="button"
+          onClick={() => {
+            setIsMinimized(false);
+            SoundFX.playWarp();
+          }}
+          className="px-4 py-2 rounded-2xl bg-[#161F30]/95 border-2 border-cyan-400 text-white font-mono text-xs font-bold flex items-center space-x-2.5 shadow-[0_0_25px_rgba(6,182,212,0.5)] backdrop-blur-md hover:scale-105 active:scale-95 transition-all"
+          title="Restore Minimized Window"
+        >
+          <span className="text-base">{icon || '🗕'}</span>
+          <span className="uppercase tracking-wider">{title}</span>
+          <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] border border-cyan-500/30">
+            MINIMIZED
+          </span>
+          <Maximize2 className="w-3.5 h-3.5 text-cyan-400" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -55,6 +82,20 @@ export const FloatingGameWindow: React.FC<FloatingGameWindowProps> = ({
           {/* Window Controls */}
           <div className="flex items-center space-x-2">
             <button
+              type="button"
+              onClick={() => {
+                SoundFX.playClick();
+                setIsMinimized(true);
+                onMinimize?.();
+              }}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition-colors"
+              title="Minimize Window (Unobstruct Screen)"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 SoundFX.playClick();
                 setIsFullscreen(!isFullscreen);
@@ -66,6 +107,7 @@ export const FloatingGameWindow: React.FC<FloatingGameWindowProps> = ({
             </button>
 
             <button
+              type="button"
               onClick={() => {
                 SoundFX.playClick();
                 onClose();

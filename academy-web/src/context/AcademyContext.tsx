@@ -5,7 +5,7 @@ import { WalletService, WalletState } from '../services/walletService';
 import { CertificateService, VerifiedCertificate } from '../services/certificateService';
 import { ContractDeployer, DeploymentReceipt } from '../services/contractDeployer';
 
-export type NavView = 'home' | 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'img2threejs' | 'worldmap' | 'chat';
+export type NavView = 'home' | 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'img2threejs' | 'worldmap' | 'chat' | 'ppfstudio' | 'worldgen' | 'economy' | 'bounties' | 'pvp';
 
 export type AvatarSkinId = 'agila' | 'panday' | 'babaylan' | 'jeepney' | 'sentinel';
 
@@ -23,14 +23,14 @@ export interface HumanAvatarConfig {
     | 'datuLongWavy'
     | 'mariaClaraBun'
     | 'diwataLocks'
+    | 'neonBangs'
     | 'urdujaPonytail'
     | 'cyberBob'
     | 'spaceBuns'
-    | 'cyberFade'
-    | 'undercut'
     | 'topknot'
     | 'braids'
-    | 'neonBangs';
+    | 'cyberFade'
+    | 'undercut';
   hairColor: string;
   outfit:
     | 'founderArmor'
@@ -61,6 +61,20 @@ export interface HumanAvatarConfig {
   auraColor?: string;
   bodyType?: 'athletic' | 'cybernetic' | 'slim';
   petDrone?: PetDroneConfig;
+  equippedPinoyItems?: {
+    weapon?: string;
+    shield?: string;
+    headwear?: string;
+    towel?: string;
+    crown?: string;
+    outfit?: string;
+    back?: string;
+    signboard?: string;
+    amulet?: string;
+    tabo?: string;
+    allEquipped?: boolean;
+    superpower?: string;
+  };
 }
 
 export const DEFAULT_HUMAN_AVATAR: HumanAvatarConfig = {
@@ -83,6 +97,19 @@ export const DEFAULT_HUMAN_AVATAR: HumanAvatarConfig = {
     enabled: true,
     skin: 'panday',
     auraColor: '#F59E0B',
+  },
+  equippedPinoyItems: {
+    weapon: 'kampilan-lapulapu',
+    shield: 'kaldero-lid-aegis',
+    headwear: 'salakot-solar',
+    towel: 'good-morning-towel',
+    crown: 'datu-sun-crown',
+    back: 'sarimanok-wings',
+    signboard: 'jeepney-route-sign',
+    amulet: 'agimat-anting',
+    tabo: 'tabo-cleansing',
+    allEquipped: true,
+    superpower: 'kamehameha',
   },
 };
 
@@ -112,6 +139,12 @@ export interface ControlSettings {
   zoom: number;
   soundVolume: number;
   particleDensity: 'low' | 'med' | 'high';
+  controlScheme: 'camera_relative' | 'world_axis';
+  invertPitch: boolean;
+  invertYaw: boolean;
+  swapJoystickSide: boolean;
+  autoTargetLock: boolean;
+  performanceTier: 'low' | 'balanced' | 'ultra';
 }
 
 interface AcademyContextType {
@@ -375,15 +408,25 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [controlSettings, setControlSettings] = useState<ControlSettings>(() => {
     const saved = localStorage.getItem('piso_control_settings');
-    return saved
-      ? JSON.parse(saved)
-      : {
-          cameraMode: 'isometric',
-          flightSpeed: 'normal',
-          zoom: 18,
-          soundVolume: 80,
-          particleDensity: 'high',
-        };
+    const defaults: ControlSettings = {
+      cameraMode: 'isometric',
+      flightSpeed: 'normal',
+      zoom: 18,
+      soundVolume: 80,
+      particleDensity: 'high',
+      controlScheme: 'camera_relative',
+      invertPitch: false,
+      invertYaw: false,
+      swapJoystickSide: false,
+      autoTargetLock: true,
+      performanceTier: 'balanced',
+    };
+    if (saved) {
+      try {
+        return { ...defaults, ...JSON.parse(saved) };
+      } catch {}
+    }
+    return defaults;
   });
 
   const recordQuestProgress = (questId: string, amount: number = 1) => {

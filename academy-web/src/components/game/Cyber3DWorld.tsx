@@ -8,6 +8,19 @@ import {
   CharacterMeshInstance,
   PetDroneInstance,
 } from './CharacterMeshBuilder';
+import { FILIPINO_PUNS, ANIME_SKILLS, AnimeSkillDef } from '../../data/filipinoCultureItems';
+import {
+  PpfClothInstance,
+  FABRIC_PRESETS,
+  SphereCollider,
+} from '../../services/PpfContactPhysicsEngine';
+import {
+  TerranianWorldEngine,
+  WorldGenOptions,
+} from '../../services/TerranianWorldEngine';
+import { MonsterSpawnEngine } from '../../services/MonsterSpawnEngine';
+import { MiningBlockEngine } from '../../services/MiningBlockEngine';
+import { PlayerStatsEngine } from '../../services/PlayerStatsEngine';
 
 export interface DistrictInfo {
   id: string;
@@ -16,7 +29,7 @@ export interface DistrictInfo {
   icon: string;
   pos: [number, number]; // [x, z]
   color: number;
-  toolView: 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'faucet' | 'worldmap';
+  toolView: 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'faucet' | 'worldmap' | 'chat';
 }
 
 export const DISTRICTS: DistrictInfo[] = [
@@ -83,6 +96,15 @@ export const DISTRICTS: DistrictInfo[] = [
     color: 0x06B6D4, // Cyan
     toolView: 'faucet',
   },
+  {
+    id: 'chat-spire',
+    name: 'Gun.js Validator Spire',
+    tagline: 'Decentralized P2P Mesh & Validator Consensus Chat',
+    icon: '💬',
+    pos: [16, -18],
+    color: 0x8B5CF6, // Cyber Purple
+    toolView: 'chat',
+  },
 ];
 
 export interface NPCLocationInfo {
@@ -137,6 +159,7 @@ interface Cyber3DWorldProps {
   onMentorSelect: (mentor: NPCLocationInfo) => void;
   onCruiseTargetChange?: (target: CruiseTargetInfo | null) => void;
   playerPosRef: React.MutableRefObject<{ x: number; z: number; heading: number }>;
+  onMiningEngineReady?: (engine: MiningBlockEngine) => void;
 }
 
 export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
@@ -146,6 +169,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
   onMentorSelect,
   onCruiseTargetChange,
   playerPosRef,
+  onMiningEngineReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const activeNearbyDistrictRef = useRef<DistrictInfo | null>(null);
@@ -156,6 +180,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
   const onMentorProximityRef = useRef(onMentorProximity);
   const onProximityChangeRef = useRef(onProximityChange);
   const onCruiseTargetChangeRef = useRef(onCruiseTargetChange);
+  const onMiningEngineReadyRef = useRef(onMiningEngineReady);
 
   useEffect(() => {
     onDistrictSelectRef.current = onDistrictSelect;
@@ -163,6 +188,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     onMentorProximityRef.current = onMentorProximity;
     onProximityChangeRef.current = onProximityChange;
     onCruiseTargetChangeRef.current = onCruiseTargetChange;
+    onMiningEngineReadyRef.current = onMiningEngineReady;
   });
 
   const { avatarSkin, avatarMode, humanAvatar, controlSettings } = useAcademy();
@@ -211,43 +237,36 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // 4. Procedural Cyber Skyline (Buildings)
-    const buildingGroup = new THREE.Group();
-    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-    const cityRadii = [45, 60, 75];
-
-    cityRadii.forEach((r) => {
-      const count = Math.floor(r * 0.7);
-      for (let i = 0; i < count; i++) {
-        const angle = (i / count) * Math.PI * 2;
-        const x = Math.cos(angle) * (r + (Math.random() * 8 - 4));
-        const z = Math.sin(angle) * (r + (Math.random() * 8 - 4));
-        const height = Math.random() * 26 + 8;
-        const width = Math.random() * 4.5 + 3;
-
-        const isGold = Math.random() > 0.6;
-        const bMat = new THREE.MeshBasicMaterial({
-          color: isGold ? 0x161F30 : 0x0F172A,
-          wireframe: Math.random() > 0.45,
-        });
-
-        const building = new THREE.Mesh(boxGeo, bMat);
-        building.scale.set(width, height, width);
-        building.position.set(x, height / 2, z);
-        buildingGroup.add(building);
-
-        if (Math.random() > 0.5) {
-          const beaconGeo = new THREE.SphereGeometry(0.5, 8, 8);
-          const beaconMat = new THREE.MeshBasicMaterial({
-            color: isGold ? 0xF59E0B : 0x3B82F6,
-          });
-          const beacon = new THREE.Mesh(beaconGeo, beaconMat);
-          beacon.position.set(x, height + 0.8, z);
-          buildingGroup.add(beacon);
-        }
-      }
+    // 4. Terranian Procedural 3D World Engine (Multi-Octave Terrain, Rivers, Buildings, Trees & Living Fauna)
+    let activeTerranianEngine = new TerranianWorldEngine({
+      biome: 'cyberManila',
+      seed: 42,
     });
-    scene.add(buildingGroup);
+    scene.add(activeTerranianEngine.worldGroup);
+    activeTerranianEngine.generate();
+
+    // 5. Mining & Building Block Engine
+    let activeMiningEngine = new MiningBlockEngine(scene);
+    activeMiningEngine.spawnWorldBlocks(42);
+    onMiningEngineReadyRef.current?.(activeMiningEngine);
+
+    // Event listener for real-time procedural world regeneration from Terranian Studio
+    const handleWorldRegenerate = (e: Event) => {
+      const ce = e as CustomEvent<WorldGenOptions>;
+      if (ce.detail) {
+        scene.remove(activeTerranianEngine.worldGroup);
+        activeTerranianEngine.dispose();
+        activeTerranianEngine = new TerranianWorldEngine(ce.detail);
+        scene.add(activeTerranianEngine.worldGroup);
+        activeTerranianEngine.generate();
+
+        activeMiningEngine.dispose();
+        activeMiningEngine = new MiningBlockEngine(scene);
+        activeMiningEngine.spawnWorldBlocks(ce.detail.seed);
+        onMiningEngineReadyRef.current?.(activeMiningEngine);
+      }
+    };
+    window.addEventListener('piso-world-regenerate', handleWorldRegenerate);
 
     // 5. Starfield Particles
     const particleCount = controlSettings.particleDensity === 'low' ? 300 : controlSettings.particleDensity === 'high' ? 1000 : 600;
@@ -292,6 +311,8 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           ? new THREE.IcosahedronGeometry(1.6, 0)
           : d.id === 'temple'
           ? new THREE.ConeGeometry(1.6, 3, 4)
+          : d.id === 'chat-spire'
+          ? new THREE.DodecahedronGeometry(1.6, 0)
           : new THREE.OctahedronGeometry(1.5, 0);
 
       const coreMat = new THREE.MeshBasicMaterial({ color: d.color, wireframe: true });
@@ -308,6 +329,66 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       scene.add(g);
       monumentMeshes.push({ mesh: g, district: d });
     });
+
+    // 6B. PPF Contact Solver Dynamic Cloth Banner (Genesis Central Plaza)
+    const ppfBanner = new PpfClothInstance(4.2, 2.2, 16, 12, FABRIC_PRESETS.silk);
+    ppfBanner.pinTopEdge();
+    ppfBanner.mesh.position.set(0, 4.0, -5.5);
+    scene.add(ppfBanner.mesh);
+
+    // Banner cyber support poles
+    const poleGeo = new THREE.CylinderGeometry(0.06, 0.08, 4.8, 8);
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.25 });
+    const poleL = new THREE.Mesh(poleGeo, poleMat);
+    poleL.position.set(-2.1, 2.4, -5.5);
+    scene.add(poleL);
+    const poleR = new THREE.Mesh(poleGeo, poleMat);
+    poleR.position.set(2.1, 2.4, -5.5);
+    scene.add(poleR);
+    const crossBarGeo = new THREE.CylinderGeometry(0.04, 0.04, 4.3, 8);
+    const crossBar = new THREE.Mesh(crossBarGeo, poleMat);
+    crossBar.rotation.z = Math.PI / 2;
+    crossBar.position.set(0, 4.0, -5.5);
+    scene.add(crossBar);
+
+    // 6C. 3D Procedural Monster Engine (Giga Buwaya Titans + Small Monster Farms)
+    const monsterSpawnEngine = new MonsterSpawnEngine(scene);
+
+    // 6D. 3D Holographic Auto-Target Lock Reticle
+    const reticleGroup = new THREE.Group();
+    reticleGroup.visible = false;
+    const reticleRingGeo = new THREE.RingGeometry(1.6, 1.85, 4); // Diamond crosshair
+    const reticleMat = new THREE.MeshBasicMaterial({
+      color: 0xEF4444, // Red target lock
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const reticleRing = new THREE.Mesh(reticleRingGeo, reticleMat);
+    reticleRing.rotation.x = -Math.PI / 2;
+    reticleGroup.add(reticleRing);
+
+    // Reticle corner ticks
+    const tickMat = new THREE.MeshBasicMaterial({ color: 0xFACC15 });
+    for (let i = 0; i < 4; i++) {
+      const tick = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), tickMat);
+      const angle = (i * Math.PI) / 2 + Math.PI / 4;
+      tick.position.set(Math.cos(angle) * 2.2, 0, Math.sin(angle) * 2.2);
+      reticleGroup.add(tick);
+    }
+
+    // Overhead Range Label
+    const reticleCanvas = document.createElement('canvas');
+    reticleCanvas.width = 256;
+    reticleCanvas.height = 64;
+    const reticleCtx = reticleCanvas.getContext('2d')!;
+    const reticleTexture = new THREE.CanvasTexture(reticleCanvas);
+    const reticleSpriteMat = new THREE.SpriteMaterial({ map: reticleTexture, transparent: true });
+    const reticleSprite = new THREE.Sprite(reticleSpriteMat);
+    reticleSprite.scale.set(3.2, 0.8, 1);
+    reticleSprite.position.y = 1.4;
+    reticleGroup.add(reticleSprite);
+    scene.add(reticleGroup);
 
     // Helper for floating 3D holographic title billboard nameplates
     const createBillboardLabel = (text: string, subtext: string, colorHex: string) => {
@@ -496,7 +577,42 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     scene.add(droneGroup);
 
-    // 8C. Holographic Live 3D Chat Speech Bubble above Avatar
+    // 8D. PPF Dynamic Cloth Physics Hero Cape with 100% Penetration-Free Cubic Barrier
+    const ppfCape = new PpfClothInstance(1.0, 1.3, 10, 10, FABRIC_PRESETS.silk);
+    ppfCape.pinVertex(0);
+    ppfCape.pinVertex(1);
+    ppfCape.pinVertex(9);
+    ppfCape.pinVertex(10);
+    ppfCape.mesh.position.set(0, avatarMode === 'human' ? 1.6 : 0.8, -0.2);
+    droneGroup.add(ppfCape.mesh);
+
+    const avatarBodyCollider: SphereCollider = {
+      center: new THREE.Vector3(0, 1.0, 0),
+      radius: 0.42,
+      dynamicStiffness: 4.5,
+    };
+
+    // Broadcast Listener for PPF Studio Physics Updates
+    const handlePpfUpdateEvent = (e: Event) => {
+      const custom = e as CustomEvent<{
+        presetId: string;
+        barrierThreshold: number;
+        contactStiffness: number;
+        windSpeed: number;
+        gravityY: number;
+      }>;
+      if (custom.detail) {
+        const p = FABRIC_PRESETS[custom.detail.presetId];
+        if (p) {
+          ppfBanner.setPreset(p);
+          ppfCape.setPreset(p);
+        }
+        avatarBodyCollider.dynamicStiffness = custom.detail.contactStiffness;
+        ppfBanner.wind.set(custom.detail.windSpeed * 0.8, 0.3, custom.detail.windSpeed * 0.6);
+        ppfCape.wind.set(custom.detail.windSpeed * 0.4, 0.2, custom.detail.windSpeed * 0.5);
+      }
+    };
+    window.addEventListener('piso-ppf-update-physics', handlePpfUpdateEvent);
     let speechBubbleTimer = 0;
     const speechCanvas = document.createElement('canvas');
     speechCanvas.width = 512;
@@ -572,6 +688,369 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       }
     };
     window.addEventListener('piso-avatar-chat', handleAvatarChatEvent);
+
+    // --- 8b. ANIME SUPER POWERS & IMPACT EXPLOSIONS ENGINE ---
+    let screenShakeIntensity = 0;
+
+    // Laser Beam Group (Dragon Ball Kamehameha / Naruto Lightning Beam)
+    const laserBeamGroup = new THREE.Group();
+    laserBeamGroup.visible = false;
+
+    // Core beam cylinder
+    const beamLength = 32;
+    const beamCoreMat = new THREE.MeshBasicMaterial({ color: 0x38BDF8, transparent: true, opacity: 0.95 });
+    const beamCoreGeo = new THREE.CylinderGeometry(0.45, 0.45, beamLength, 16);
+    const beamCore = new THREE.Mesh(beamCoreGeo, beamCoreMat);
+    beamCore.rotation.x = Math.PI / 2;
+    beamCore.position.z = beamLength / 2;
+    laserBeamGroup.add(beamCore);
+
+    // Outer Aura Sheath
+    const beamSheathMat = new THREE.MeshBasicMaterial({ color: 0xF59E0B, transparent: true, opacity: 0.45, side: THREE.BackSide });
+    const beamSheathGeo = new THREE.CylinderGeometry(0.85, 0.85, beamLength, 16);
+    const beamSheath = new THREE.Mesh(beamSheathGeo, beamSheathMat);
+    beamSheath.rotation.x = Math.PI / 2;
+    beamSheath.position.z = beamLength / 2;
+    laserBeamGroup.add(beamSheath);
+
+    // Corkscrew Lightning Spiral around beam
+    const spiralRings: THREE.Mesh[] = [];
+    for (let r = 0; r < 8; r++) {
+      const spRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.9, 0.04, 6, 16),
+        new THREE.MeshBasicMaterial({ color: 0x67E8F9, transparent: true, opacity: 0.8 })
+      );
+      spRing.position.z = 2 + r * 4;
+      laserBeamGroup.add(spRing);
+      spiralRings.push(spRing);
+    }
+    scene.add(laserBeamGroup);
+
+    // Ki Energy Gathering Charge Sphere
+    const kiChargeMat = new THREE.MeshBasicMaterial({ color: 0x06B6D4, wireframe: true });
+    const kiChargeSphere = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), kiChargeMat);
+    kiChargeSphere.visible = false;
+    scene.add(kiChargeSphere);
+
+    // Anime Impact Explosion Group
+    const explosionGroup = new THREE.Group();
+    explosionGroup.visible = false;
+
+    // Fiery energy expansion dome
+    const fireballMat = new THREE.MeshBasicMaterial({ color: 0xEF4444, transparent: true, opacity: 0.9 });
+    const fireball = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), fireballMat);
+    explosionGroup.add(fireball);
+
+    // Expanding ground shockwave ring
+    const groundShockMat = new THREE.MeshBasicMaterial({ color: 0xF59E0B, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
+    const groundShock = new THREE.Mesh(new THREE.RingGeometry(0.5, 1.4, 32), groundShockMat);
+    groundShock.rotation.x = -Math.PI / 2;
+    groundShock.position.y = 0.08;
+    explosionGroup.add(groundShock);
+
+    // Spark particle burst
+    const sparkCount = 28;
+    const sparkGeo = new THREE.BufferGeometry();
+    const sparkPos = new Float32Array(sparkCount * 3);
+    const sparkVels: THREE.Vector3[] = [];
+    for (let i = 0; i < sparkCount; i++) {
+      sparkPos[i * 3] = 0;
+      sparkPos[i * 3 + 1] = 0.5;
+      sparkPos[i * 3 + 2] = 0;
+      sparkVels.push(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * 16,
+          Math.random() * 12 + 2,
+          (Math.random() - 0.5) * 16
+        )
+      );
+    }
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+    const sparkMat = new THREE.PointsMaterial({ color: 0xFDE047, size: 0.5, transparent: true, opacity: 1 });
+    const sparkPoints = new THREE.Points(sparkGeo, sparkMat);
+    explosionGroup.add(sparkPoints);
+    scene.add(explosionGroup);
+
+    // Flying 3D Tsinelas Projectile Group
+    const flyingTsinelasGroup = new THREE.Group();
+    flyingTsinelasGroup.visible = false;
+
+    const tsinelasSole = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.06, 0.55),
+      new THREE.MeshStandardMaterial({ color: 0x0284C7, roughness: 0.5 })
+    );
+    flyingTsinelasGroup.add(tsinelasSole);
+
+    const tsinelasStrap = new THREE.Mesh(
+      new THREE.TorusGeometry(0.14, 0.03, 6, 16),
+      new THREE.MeshStandardMaterial({ color: 0xDC2626 })
+    );
+    tsinelasStrap.rotation.x = Math.PI / 3;
+    tsinelasStrap.position.set(0, 0.08, -0.05);
+    flyingTsinelasGroup.add(tsinelasStrap);
+
+    // Comic "BAM!" impact billboard
+    const bamCanvas = document.createElement('canvas');
+    bamCanvas.width = 256;
+    bamCanvas.height = 128;
+    const bamCtx = bamCanvas.getContext('2d');
+    if (bamCtx) {
+      bamCtx.fillStyle = '#EF4444';
+      bamCtx.beginPath();
+      const cx = 128, cy = 64, spikes = 10, outer = 55, inner = 30;
+      for (let i = 0; i < spikes * 2; i++) {
+        const rad = (i / (spikes * 2)) * Math.PI * 2;
+        const dist = i % 2 === 0 ? outer : inner;
+        const x = cx + Math.cos(rad) * dist;
+        const y = cy + Math.sin(rad) * dist;
+        if (i === 0) bamCtx.moveTo(x, y);
+        else bamCtx.lineTo(x, y);
+      }
+      bamCtx.closePath();
+      bamCtx.fill();
+      bamCtx.lineWidth = 4;
+      bamCtx.strokeStyle = '#FDE047';
+      bamCtx.stroke();
+      bamCtx.fillStyle = '#FFFFFF';
+      bamCtx.font = '900 32px monospace';
+      bamCtx.textAlign = 'center';
+      bamCtx.fillText('BAM!', cx, cy + 10);
+    }
+    const bamTexture = new THREE.CanvasTexture(bamCanvas);
+    const bamMat = new THREE.SpriteMaterial({ map: bamTexture, transparent: true, opacity: 0 });
+    const bamSprite = new THREE.Sprite(bamMat);
+    bamSprite.scale.set(3.5, 1.8, 1);
+    scene.add(bamSprite);
+    scene.add(flyingTsinelasGroup);
+
+    // --- 3D FLOATING COMBAT DAMAGE NUMBERS ---
+    interface FloatingDamageItem {
+      sprite: THREE.Sprite;
+      timer: number;
+      maxTime: number;
+      velY: number;
+    }
+    const floatingDamageItems: FloatingDamageItem[] = [];
+
+    const spawnDamagePopup = (text: string, colorHex: string, worldPos: THREE.Vector3, scale = 1.0) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 384;
+      canvas.height = 96;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.font = '900 32px monospace, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.shadowColor = colorHex;
+        ctx.shadowBlur = 14;
+
+        ctx.fillStyle = 'rgba(11, 15, 23, 0.92)';
+        ctx.beginPath();
+        ctx.roundRect(10, 10, 364, 76, 20);
+        ctx.fill();
+
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = colorHex;
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillText(text, 192, 48);
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 1, depthTest: false });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.scale.set(4.4 * scale, 1.1 * scale, 1);
+      sprite.position.copy(worldPos).add(new THREE.Vector3(0, 2.0, 0));
+      scene.add(sprite);
+
+      floatingDamageItems.push({
+        sprite,
+        timer: 0,
+        maxTime: 1.4,
+        velY: 2.2,
+      });
+    };
+
+    // --- ADDITIONAL 3D ATTACK MESHES ---
+    // 1. Rasengan Swirling Sphere Group
+    const rasenganGroup = new THREE.Group();
+    rasenganGroup.visible = false;
+    const rCoreGeo = new THREE.SphereGeometry(0.38, 16, 16);
+    const rCoreMat = new THREE.MeshBasicMaterial({ color: 0x38BDF8, transparent: true, opacity: 0.9 });
+    const rCore = new THREE.Mesh(rCoreGeo, rCoreMat);
+    rasenganGroup.add(rCore);
+    const rRingMat = new THREE.MeshBasicMaterial({ color: 0x06B6D4, wireframe: true });
+    const rRing1 = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.02, 6, 24), rRingMat);
+    rRing1.rotation.x = Math.PI / 4;
+    rasenganGroup.add(rRing1);
+    const rRing2 = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.02, 6, 24), rRingMat);
+    rRing2.rotation.y = Math.PI / 4;
+    rasenganGroup.add(rRing2);
+    scene.add(rasenganGroup);
+
+    // 2. Bathala's Lightning Storm Group
+    const stormGroup = new THREE.Group();
+    stormGroup.visible = false;
+    const stormBolts: THREE.Mesh[] = [];
+    const boltMat = new THREE.MeshBasicMaterial({ color: 0xFDE047 });
+    for (let i = 0; i < 5; i++) {
+      const bMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 28, 6), boltMat);
+      stormBolts.push(bMesh);
+      stormGroup.add(bMesh);
+    }
+    scene.add(stormGroup);
+
+    // 3. Walis Tambo Cyclone Tornado Mesh
+    const cycloneMat = new THREE.MeshBasicMaterial({ color: 0x10B981, transparent: true, opacity: 0, wireframe: true });
+    const cycloneMesh = new THREE.Mesh(new THREE.ConeGeometry(2.4, 4.0, 16, 1, true), cycloneMat);
+    cycloneMesh.rotation.x = Math.PI;
+    cycloneMesh.position.y = 1.8;
+    scene.add(cycloneMesh);
+
+    // 4. Tabo Hydro Wave Mesh
+    const hydroMat = new THREE.MeshBasicMaterial({ color: 0x06B6D4, transparent: true, opacity: 0, side: THREE.DoubleSide });
+    const hydroWaveMesh = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.35, 8, 24, Math.PI), hydroMat);
+    hydroWaveMesh.rotation.x = -Math.PI / 2;
+    scene.add(hydroWaveMesh);
+
+    // Active super power attack state
+    interface ActiveAttackState {
+      type: string;
+      timer: number;
+      origin: THREE.Vector3;
+      heading: number;
+      impactPoint: THREE.Vector3;
+      damageApplied?: boolean;
+    }
+    let currentAttack: ActiveAttackState | null = null;
+
+    const applyMonsterCombatHit = (impactPos: THREE.Vector3, hitRadius: number, baseDmg: number, skillName: string) => {
+      const hits = monsterSpawnEngine.applyDamage(
+        { x: impactPos.x, z: impactPos.z },
+        hitRadius,
+        baseDmg,
+        skillName
+      );
+      if (hits.length > 0) {
+        for (const h of hits) {
+          if (h.slain && h.isBoss) {
+            screenShakeIntensity = 3.2; // Massive titan defeat screen shake
+          }
+        }
+      }
+    };
+
+    const triggerSuperPower = (powerId: string) => {
+      const origin = droneGroup.position.clone();
+
+      // Smart Nearest-Target Auto-Locking
+      const nearestTarget = monsterSpawnEngine.getNearestAliveMonster(
+        { x: droneGroup.position.x, z: droneGroup.position.z },
+        42
+      );
+
+      let impactPoint: THREE.Vector3;
+      if (nearestTarget && controlSettings.autoTargetLock !== false) {
+        const tPos = nearestTarget.monster.mesh.position;
+        const dx = tPos.x - droneGroup.position.x;
+        const dz = tPos.z - droneGroup.position.z;
+        droneHeading = Math.atan2(dx, -dz);
+        droneGroup.rotation.y = droneHeading;
+        impactPoint = tPos.clone();
+      } else {
+        const forwardDist = powerId === 'chidori' ? 18 : powerId === 'rasengan' ? 22 : powerId === 'gatling' ? 8 : 28;
+        const fwd = new THREE.Vector3(Math.sin(droneHeading), 0, -Math.cos(droneHeading));
+        impactPoint = origin.clone().add(fwd.multiplyScalar(forwardDist));
+      }
+
+      currentAttack = {
+        type: powerId,
+        timer: 0,
+        origin,
+        heading: droneHeading,
+        impactPoint,
+      };
+
+      const skill = ANIME_SKILLS.find((s) => s.id === powerId);
+
+      if (powerId === 'kamehameha') {
+        showAvatarSpeechBubble('DATU SOVEREIGN', 'KA... ME... HA... ME... PISOOOOO! 🔥', true);
+        SoundFX.playAnimeCharge();
+      } else if (powerId === 'chidori') {
+        showAvatarSpeechBubble('DATU SOVEREIGN', '⚡ CHIDORI NG MERALCO! 1.21 GW! ⚡', true);
+        SoundFX.playChidoriLightning();
+      } else if (powerId === 'tsinelas') {
+        showAvatarSpeechBubble('NANAY', 'WALANG MINTIS ANG TSINELAS KO! 🩴🎯', false);
+        SoundFX.playLaser();
+      } else if (powerId === 'gear5') {
+        showAvatarSpeechBubble('JOYBOY DATU', 'HAHAHA! GEAR 5 LOKO-LOKO BOUNCE! 🤪✨', false);
+        SoundFX.playGear5Laugh();
+      } else if (powerId === 'rasengan') {
+        showAvatarSpeechBubble('DATU SHINOBI', '🌀 RASENGAN NG BAGUIO! SPIRAL BURST! 🌀', true);
+        SoundFX.playRasenganSpiral();
+      } else if (powerId === 'gatling') {
+        showAvatarSpeechBubble('LUFFY BUILDER', '🥊 GOMU GOMU NO SAPAPOK GATLING! 🥊', false);
+        SoundFX.playGatlingRapidPunch();
+      } else if (powerId === 'lightning_storm') {
+        showAvatarSpeechBubble('BATHALA', '⛈️ PARUSAHAN ANG MGA EXPLOITER! ⛈️', true);
+        SoundFX.playThunderstormStrike();
+      } else if (powerId === 'cyclone_spin') {
+        showAvatarSpeechBubble('PANDAY SPEED', '🌪️ WALIS TAMBO WHIRLWIND! SWEEP ALL BUGS! 🌪️', false);
+        SoundFX.playCycloneSpin();
+      } else if (powerId === 'hydro_wave') {
+        showAvatarSpeechBubble('BABAYLAN MAYA', '🌊 TABO HYDRO SURGE! LINISIN ANG REVERTS! 🌊', false);
+        SoundFX.playWaterSurge();
+      } else if (powerId === 'pun') {
+        const randomPun = FILIPINO_PUNS[Math.floor(Math.random() * FILIPINO_PUNS.length)];
+        showAvatarSpeechBubble('PINOY BUILDER', randomPun, false);
+        SoundFX.playFunnyPunBoing();
+        screenShakeIntensity = 0.6;
+        spawnDamagePopup('❤️ 100 EMOTIONAL DAMAGE!', '#EC4899', origin);
+      }
+    };
+
+    const handleSuperPowerEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ powerId: string }>;
+      if (customEvent.detail && customEvent.detail.powerId) {
+        triggerSuperPower(customEvent.detail.powerId);
+      }
+    };
+    window.addEventListener('piso-trigger-superpower', handleSuperPowerEvent);
+
+    const handleScreenShakeEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ intensity?: number }>;
+      screenShakeIntensity = customEvent.detail?.intensity || 1.4;
+    };
+    window.addEventListener('piso-trigger-screen-shake', handleScreenShakeEvent);
+
+    // Auto Idle Attack Holographic Ring
+    const autoAttackRingMat = new THREE.MeshBasicMaterial({
+      color: 0x10B981,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      wireframe: true,
+    });
+    const autoAttackRing = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.85, 32), autoAttackRingMat);
+    autoAttackRing.rotation.x = -Math.PI / 2;
+    autoAttackRing.position.y = 0.08;
+    autoAttackRing.visible = false;
+    scene.add(autoAttackRing);
+
+    let isAutoAttackMode = false;
+    let autoAttackTimer = 0;
+    const handleAutoAttackEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ active: boolean }>;
+      isAutoAttackMode = !!customEvent.detail?.active;
+      autoAttackRing.visible = isAutoAttackMode;
+      if (isAutoAttackMode) {
+        showAvatarSpeechBubble('SYSTEM AI', '🤖 AUTO-IDLE COMBAT ACTIVE! ROTATING DPS!', false);
+      }
+    };
+    window.addEventListener('piso-toggle-auto-attack', handleAutoAttackEvent);
 
     // 9. Click-to-Fly Target Beacon (Pulsing Ground Ring)
     const clickTargetGeo = new THREE.RingGeometry(0.6, 0.85, 32);
@@ -790,8 +1269,39 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         return;
       }
 
+      // B Key: Toggle Builder Mode
+      if (k === 'b') {
+        activeMiningEngine.builderMode = !activeMiningEngine.builderMode;
+        return;
+      }
+
+      // M Key: Open Mining & Building Studio
+      if (k === 'm') {
+        window.dispatchEvent(new CustomEvent('piso-open-mining-studio'));
+        return;
+      }
+
       // E Key interacts with nearby Mentor/District within 4.0 units, OR cycles/moves to the NEXT option!
       if (k === 'e') {
+        // 0. Builder mode placement overrides all other E actions
+        if (activeMiningEngine.builderMode) {
+          const buildDist = 3.5;
+          const bx = droneGroup.position.x + Math.sin(droneHeading) * buildDist;
+          const bz = droneGroup.position.z - Math.cos(droneHeading) * buildDist;
+          const buildPos = new THREE.Vector3(bx, 0, bz);
+          activeMiningEngine.placeBlock(activeMiningEngine.selectedBlockType, buildPos);
+          return;
+        }
+
+        // 0.5. Check for mineable blocks first
+        const playerStats = PlayerStatsEngine.getStats();
+        const miningResult = activeMiningEngine.mineNearestBlock(droneGroup.position, playerStats.level, 3.5);
+        if (miningResult) {
+          SoundFX.playLaser?.(); // temporary mining sound effect
+          PlayerStatsEngine.addMiningExp(miningResult.block.type, miningResult.exp);
+          return;
+        }
+
         // 1. Check if directly in front of a mentor (within tight 4.0 units)
         let closestMentor: { mentor: NPCLocationInfo; dist: number } | null = null;
         for (const { mentor } of npcMeshes) {
@@ -956,8 +1466,10 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       if (isRightDragging) {
         const dx = e.clientX - prevPointerX;
         const dy = e.clientY - prevPointerY;
-        orbitAngle -= dx * 0.007;
-        elevationAngle = Math.max(0.2, Math.min(1.3, elevationAngle + dy * 0.007));
+        const yawMul = controlSettings.invertYaw ? 1 : -1;
+        const pitchMul = controlSettings.invertPitch ? -1 : 1;
+        orbitAngle += dx * 0.007 * yawMul;
+        elevationAngle = Math.max(0.2, Math.min(1.3, elevationAngle + dy * 0.007 * pitchMul));
         prevPointerX = e.clientX;
         prevPointerY = e.clientY;
       } else {
@@ -999,11 +1511,72 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       e.preventDefault(); // Prevent context menu on right click
     };
 
+    // Mobile Touch Orbit & Pinch-to-Zoom
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isTouchOrbiting = false;
+    let initialPinchDist = 0;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        isTouchOrbiting = true;
+      } else if (e.touches.length === 2) {
+        isTouchOrbiting = false;
+        initialPinchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1 && isTouchOrbiting) {
+        const dx = e.touches[0].clientX - touchStartX;
+        const dy = e.touches[0].clientY - touchStartY;
+        const yawMul = controlSettings.invertYaw ? 1 : -1;
+        const pitchMul = controlSettings.invertPitch ? -1 : 1;
+        orbitAngle += dx * 0.007 * yawMul;
+        elevationAngle = Math.max(0.2, Math.min(1.3, elevationAngle + dy * 0.007 * pitchMul));
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      } else if (e.touches.length === 2 && initialPinchDist > 0) {
+        const currentDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const diff = currentDist - initialPinchDist;
+        zoomDistance = Math.max(10, Math.min(32, zoomDistance - diff * 0.03));
+        initialPinchDist = currentDist;
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        isTouchOrbiting = false;
+        initialPinchDist = 0;
+      }
+    };
+
     container.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
     container.addEventListener('wheel', handleWheel, { passive: false });
     container.addEventListener('contextmenu', handleContextMenu);
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    // Mobile Touch Joystick Movement listener
+    let mobileInput = { x: 0, z: 0, intensity: 0, active: false };
+    const handleMobileMoveEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ x: number; z: number; intensity: number; active: boolean }>;
+      if (custom.detail) {
+        mobileInput = custom.detail;
+      }
+    };
+    window.addEventListener('piso-mobile-move', handleMobileMoveEvent);
 
     // 13. Animation Loop
     let animationFrameId: number;
@@ -1027,7 +1600,30 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       if (keys.a) moveX -= 1;
       if (keys.d) moveX += 1;
 
-      if (moveX !== 0 || moveZ !== 0) {
+      // 1. Mobile Virtual Touch Joystick Movement (Camera-Relative)
+      if (mobileInput.active && mobileInput.intensity > 0.05) {
+        if (targetPos) {
+          targetPos = null;
+          pendingInteractRef.current = null;
+          targetMentorIndex = -1;
+          (clickBeacon.material as THREE.MeshBasicMaterial).opacity = 0;
+          onCruiseTargetChangeRef.current?.(null);
+        }
+
+        // Convert joystick to camera-relative world direction
+        const joyAngle = Math.atan2(mobileInput.x, -mobileInput.z);
+        const worldAngle = joyAngle + orbitAngle;
+        const moveMag = speed * mobileInput.intensity;
+
+        const moveWorldX = Math.sin(worldAngle) * moveMag;
+        const moveWorldZ = -Math.cos(worldAngle) * moveMag;
+
+        droneGroup.position.x += moveWorldX * delta;
+        droneGroup.position.z += moveWorldZ * delta;
+        // Only update heading — rotation.y is driven by the single lerp below
+        droneHeading = worldAngle;
+
+      } else if (moveX !== 0 || moveZ !== 0) {
         if (targetPos) {
           targetPos = null;
           pendingInteractRef.current = null;
@@ -1036,9 +1632,26 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           onCruiseTargetChangeRef.current?.(null);
         }
         const mag = Math.sqrt(moveX * moveX + moveZ * moveZ);
-        droneGroup.position.x += (moveX / mag) * speed * delta;
-        droneGroup.position.z += (moveZ / mag) * speed * delta;
-        droneHeading = Math.atan2(moveX, -moveZ);
+        if (controlSettings.controlScheme !== 'world_axis') {
+          // Camera-Relative: W moves in the direction the camera is facing
+          const keyAngle = Math.atan2(moveX, -moveZ);
+          const worldAngle = keyAngle + orbitAngle;
+          const moveWorldX = Math.sin(worldAngle) * speed;
+          const moveWorldZ = -Math.cos(worldAngle) * speed;
+          droneGroup.position.x += moveWorldX * delta;
+          droneGroup.position.z += moveWorldZ * delta;
+          // Face the actual world direction of travel (not just the key angle)
+          droneHeading = worldAngle;
+        } else {
+          // World-Axis: translate the raw input into a world movement vector,
+          // then derive heading from where we actually moved, not the raw keys.
+          const nx = moveX / mag;
+          const nz = moveZ / mag;
+          droneGroup.position.x += nx * speed * delta;
+          droneGroup.position.z += nz * speed * delta;
+          // atan2(x, -z): character faces the direction of movement in world space
+          droneHeading = Math.atan2(nx, -nz);
+        }
       } else if (targetPos) {
         const dx = targetPos.x - droneGroup.position.x;
         const dz = targetPos.z - droneGroup.position.z;
@@ -1081,9 +1694,9 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         }
       }
 
-      // Constrain within bounds
-      droneGroup.position.x = Math.max(-70, Math.min(70, droneGroup.position.x));
-      droneGroup.position.z = Math.max(-70, Math.min(70, droneGroup.position.z));
+      // Constrain within expanded procedural world bounds (380m terrain)
+      droneGroup.position.x = Math.max(-170, Math.min(170, droneGroup.position.x));
+      droneGroup.position.z = Math.max(-170, Math.min(170, droneGroup.position.z));
 
       // Update Jump & Double Jump Physics
       if (jumpCount > 0 || jumpOffsetY > 0) {
@@ -1123,7 +1736,26 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         speechMat.opacity = 0;
       }
 
-      // Humanoid Walking Rig vs Drone Hover Mechanics
+      // Update Terranian Procedural World Animations (Waves, Eagles, Carabaos, Fish)
+      activeTerranianEngine.update(delta, time);
+      const terrainH = activeTerranianEngine.sampleTerrainHeight(droneGroup.position.x, droneGroup.position.z);
+
+      // Update Mining & Building blocks
+      activeMiningEngine.update(delta);
+
+      if (activeMiningEngine.builderMode) {
+        const buildDist = 3.5;
+        const bx = droneGroup.position.x + Math.sin(droneHeading) * buildDist;
+        const bz = droneGroup.position.z - Math.cos(droneHeading) * buildDist;
+        const buildPos = new THREE.Vector3(bx, terrainH, bz);
+        // Only allow placement if not colliding with self (distance > 2)
+        const canPlace = Math.sqrt((bx - droneGroup.position.x)**2 + (bz - droneGroup.position.z)**2) > 2.0;
+        activeMiningEngine.updateGhostBlock(buildPos, canPlace);
+      } else {
+        activeMiningEngine.updateGhostBlock(droneGroup.position, false);
+      }
+
+      // Humanoid Walking Rig vs Drone Hover Mechanics with Continuous Terrain Elevation
       const isMoving = (moveX !== 0 || moveZ !== 0) || targetPos !== null;
       const isJumping = jumpCount > 0 || jumpOffsetY > 0.04;
 
@@ -1140,11 +1772,11 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           jumpCount === 2,
           jumpVelocityY
         );
-        const groundY = isMoving && !isJumping ? 0.05 + Math.abs(Math.sin(humanWalkPhase)) * 0.03 : 0.05;
+        const groundY = (isMoving && !isJumping ? 0.05 + Math.abs(Math.sin(humanWalkPhase)) * 0.03 : 0.05) + terrainH;
         droneGroup.position.y = groundY + jumpOffsetY;
       } else {
-        // Drone Hover Bob + Jump Offset
-        const hoverY = 1.4 + Math.sin(time * 3.5) * 0.12;
+        // Drone Hover Bob + Jump Offset on terrain
+        const hoverY = 1.4 + Math.sin(time * 3.5) * 0.12 + terrainH;
         droneGroup.position.y = hoverY + jumpOffsetY;
       }
 
@@ -1162,6 +1794,351 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         z: droneGroup.position.z,
         heading: droneGroup.rotation.y,
       };
+
+      // 13b. Animate Active Anime Super Power Attack
+      if (currentAttack) {
+        currentAttack.timer += delta;
+        const attackTimer = currentAttack.timer;
+
+        if (currentAttack.type === 'kamehameha') {
+          if (attackTimer < 0.6) {
+            // Charging Ki orb at hands
+            kiChargeSphere.visible = true;
+            kiChargeMat.color.setHex(0x38BDF8);
+            const handPos = droneGroup.position.clone().add(
+              new THREE.Vector3(Math.sin(currentAttack.heading) * 1.1, 1.2, -Math.cos(currentAttack.heading) * 1.1)
+            );
+            kiChargeSphere.position.copy(handPos);
+            kiChargeSphere.scale.setScalar(0.8 + Math.sin(time * 35) * 0.4);
+          } else if (attackTimer < 1.6) {
+            // Firing Laser Beam
+            kiChargeSphere.visible = false;
+            laserBeamGroup.visible = true;
+            beamCoreMat.color.setHex(0x38BDF8);
+            beamSheathMat.color.setHex(0xF59E0B);
+            laserBeamGroup.position.copy(droneGroup.position).add(new THREE.Vector3(0, 1.2, 0));
+            laserBeamGroup.rotation.y = currentAttack.heading;
+
+            spiralRings.forEach((sp, idx) => {
+              sp.rotation.z = time * 24 + idx * 0.4;
+              sp.scale.setScalar(0.9 + Math.sin(time * 18 + idx) * 0.2);
+            });
+
+            // Impact trigger at 0.9s
+            if (attackTimer >= 0.9 && !explosionGroup.visible) {
+              explosionGroup.visible = true;
+              explosionGroup.position.copy(currentAttack.impactPoint);
+              fireballMat.color.setHex(0xEF4444);
+              groundShockMat.color.setHex(0xF59E0B);
+              fireball.scale.setScalar(1);
+              groundShock.scale.setScalar(1);
+              SoundFX.playAnimeExplosion();
+              screenShakeIntensity = 2.4; // MASSIVE IMPACT SCREEN SHAKE
+              spawnDamagePopup('💥 3,500 SUPERNOVA PLASMA!', '#06B6D4', currentAttack.impactPoint, 1.25);
+              applyMonsterCombatHit(currentAttack.impactPoint, 14, 3500, 'Kamehame-PISO');
+            }
+
+            if (explosionGroup.visible) {
+              fireball.scale.addScalar(delta * 14);
+              fireballMat.opacity = Math.max(0, 1.6 - (attackTimer - 0.9) * 2);
+              groundShock.scale.addScalar(delta * 22);
+              groundShockMat.opacity = Math.max(0, 1.6 - (attackTimer - 0.9) * 2);
+
+              const posAttr = sparkGeo.attributes.position as THREE.BufferAttribute;
+              for (let i = 0; i < sparkCount; i++) {
+                posAttr.setXYZ(
+                  i,
+                  posAttr.getX(i) + sparkVels[i].x * delta,
+                  posAttr.getY(i) + sparkVels[i].y * delta,
+                  posAttr.getZ(i) + sparkVels[i].z * delta
+                );
+              }
+              posAttr.needsUpdate = true;
+            }
+          } else {
+            laserBeamGroup.visible = false;
+            explosionGroup.visible = false;
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'chidori') {
+          if (attackTimer < 0.25) {
+            kiChargeSphere.visible = true;
+            kiChargeMat.color.setHex(0xA855F7);
+            const handPos = droneGroup.position.clone().add(
+              new THREE.Vector3(Math.sin(currentAttack.heading) * 1.1, 1.2, -Math.cos(currentAttack.heading) * 1.1)
+            );
+            kiChargeSphere.position.copy(handPos);
+            kiChargeSphere.scale.setScalar(0.7 + Math.random() * 0.5);
+          } else if (attackTimer < 1.2) {
+            kiChargeSphere.visible = false;
+            laserBeamGroup.visible = true;
+            beamCoreMat.color.setHex(0xC084FC);
+            beamSheathMat.color.setHex(0x06B6D4);
+            laserBeamGroup.position.copy(droneGroup.position).add(new THREE.Vector3(0, 1.2, 0));
+            laserBeamGroup.rotation.y = currentAttack.heading;
+
+            if (attackTimer >= 0.4 && !explosionGroup.visible) {
+              explosionGroup.visible = true;
+              explosionGroup.position.copy(currentAttack.impactPoint);
+              fireballMat.color.setHex(0xA855F7);
+              groundShockMat.color.setHex(0x06B6D4);
+              fireball.scale.setScalar(1);
+              groundShock.scale.setScalar(1);
+              SoundFX.playAnimeExplosion();
+              screenShakeIntensity = 1.6; // Electric tremor
+              spawnDamagePopup('⚡ 1,200 PIERCING SHOCK!', '#A855F7', currentAttack.impactPoint, 1.1);
+              applyMonsterCombatHit(currentAttack.impactPoint, 9, 1200, 'Chidori ng Meralco');
+            }
+
+            if (explosionGroup.visible) {
+              fireball.scale.addScalar(delta * 12);
+              fireballMat.opacity = Math.max(0, 1.5 - (attackTimer - 0.4) * 2);
+              groundShock.scale.addScalar(delta * 18);
+              groundShockMat.opacity = Math.max(0, 1.5 - (attackTimer - 0.4) * 2);
+            }
+          } else {
+            laserBeamGroup.visible = false;
+            explosionGroup.visible = false;
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'tsinelas') {
+          if (attackTimer < 0.7) {
+            flyingTsinelasGroup.visible = true;
+            const progress = attackTimer / 0.7;
+            flyingTsinelasGroup.position.lerpVectors(currentAttack.origin, currentAttack.impactPoint, progress);
+            flyingTsinelasGroup.position.y = 1.4 + Math.sin(progress * Math.PI) * 2.5; // Arc trajectory
+            flyingTsinelasGroup.rotation.x += delta * 45;
+            flyingTsinelasGroup.rotation.y += delta * 35;
+          } else if (attackTimer < 1.5) {
+            flyingTsinelasGroup.visible = false;
+            if (bamMat.opacity === 0) {
+              bamSprite.position.copy(currentAttack.impactPoint).add(new THREE.Vector3(0, 1.8, 0));
+              bamMat.opacity = 1;
+              SoundFX.playTsinelasSlap();
+              screenShakeIntensity = 1.8;
+              spawnDamagePopup('🩴 650 DISCIPLINE SLAP!', '#0284C7', currentAttack.impactPoint, 1.05);
+              applyMonsterCombatHit(currentAttack.impactPoint, 7, 650, 'Tsinelas ni Nanay');
+            }
+            bamSprite.scale.addScalar(delta * 3);
+            bamMat.opacity = Math.max(0, 1 - (attackTimer - 0.7) * 1.5);
+          } else {
+            bamMat.opacity = 0;
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'gear5') {
+          if (attackTimer < 0.25) {
+            droneGroup.scale.set(1.4, 0.5, 1.4);
+          } else if (attackTimer < 0.6) {
+            droneGroup.scale.set(0.8, 1.3, 0.8);
+            droneGroup.position.y += delta * 22;
+          } else if (attackTimer < 0.75) {
+            droneGroup.scale.set(1.5, 0.6, 1.5);
+            if (!explosionGroup.visible) {
+              explosionGroup.visible = true;
+              explosionGroup.position.copy(droneGroup.position);
+              groundShockMat.color.setHex(0xFDE047);
+              groundShock.scale.setScalar(1);
+              SoundFX.playAnimeExplosion();
+              screenShakeIntensity = 2.4; // Ground tremor
+              spawnDamagePopup('🌟 9,999 MAXIMUM OVERKILL!', '#FACC15', droneGroup.position, 1.35);
+              applyMonsterCombatHit(droneGroup.position, 22, 9999, 'Gear 5 Loko-Loko');
+            }
+            groundShock.scale.addScalar(delta * 24);
+            groundShockMat.opacity = Math.max(0, 1 - (attackTimer - 0.6) * 3);
+          } else {
+            droneGroup.scale.set(1, 1, 1);
+            explosionGroup.visible = false;
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'rasengan') {
+          if (attackTimer < 0.55) {
+            rasenganGroup.visible = true;
+            const progress = attackTimer / 0.55;
+            rasenganGroup.position.lerpVectors(currentAttack.origin, currentAttack.impactPoint, progress);
+            rasenganGroup.position.y = 1.3 + Math.sin(progress * Math.PI) * 0.4;
+            rCore.rotation.y += delta * 30;
+            rRing1.rotation.z += delta * 25;
+            rRing2.rotation.x += delta * 25;
+          } else if (attackTimer < 1.4) {
+            rasenganGroup.visible = false;
+            if (!explosionGroup.visible) {
+              explosionGroup.visible = true;
+              explosionGroup.position.copy(currentAttack.impactPoint);
+              fireballMat.color.setHex(0x38BDF8);
+              groundShockMat.color.setHex(0x06B6D4);
+              fireball.scale.setScalar(1);
+              groundShock.scale.setScalar(1);
+              SoundFX.playAnimeExplosion();
+              screenShakeIntensity = 1.8;
+              spawnDamagePopup('🌀 2,200 SPIRAL VORTEX!', '#38BDF8', currentAttack.impactPoint, 1.15);
+              applyMonsterCombatHit(currentAttack.impactPoint, 10, 2200, 'Rasengan ng Baguio');
+            }
+            fireball.scale.addScalar(delta * 12);
+            fireballMat.opacity = Math.max(0, 1.5 - (attackTimer - 0.55) * 2);
+            groundShock.scale.addScalar(delta * 18);
+            groundShockMat.opacity = Math.max(0, 1.5 - (attackTimer - 0.55) * 2);
+          } else {
+            explosionGroup.visible = false;
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'gatling') {
+          if (attackTimer < 0.75) {
+            screenShakeIntensity = 0.8;
+            droneGroup.position.x += (Math.random() - 0.5) * 0.12;
+            droneGroup.position.z += (Math.random() - 0.5) * 0.12;
+            if (!currentAttack.damageApplied && attackTimer > 0.35) {
+              currentAttack.damageApplied = true;
+              spawnDamagePopup('🥊 1,800 RAPID COMBO!', '#F97316', currentAttack.impactPoint, 1.1);
+              applyMonsterCombatHit(currentAttack.impactPoint, 8, 1800, 'Sapapok Gatling');
+            }
+          } else {
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'lightning_storm') {
+          if (attackTimer < 1.2) {
+            stormGroup.visible = true;
+            const impact = currentAttack.impactPoint;
+            stormBolts.forEach((bolt, idx) => {
+              const angle = (idx / 5) * Math.PI * 2 + attackTimer * 3;
+              const radius = 3.5 + Math.sin(attackTimer * 8 + idx) * 0.8;
+              bolt.position.set(
+                impact.x + Math.cos(angle) * radius,
+                Math.max(0, 14 - attackTimer * 16),
+                impact.z + Math.sin(angle) * radius
+              );
+              bolt.rotation.z = (Math.random() - 0.5) * 0.2;
+            });
+            if (!currentAttack.damageApplied && attackTimer > 0.3) {
+              currentAttack.damageApplied = true;
+              screenShakeIntensity = 2.2;
+              spawnDamagePopup('⛈️ 5,000 DIVINE WRATH!', '#EAB308', currentAttack.impactPoint, 1.3);
+              applyMonsterCombatHit(currentAttack.impactPoint, 18, 5000, "Bathala's Lightning Storm");
+            }
+          } else {
+            stormGroup.visible = false;
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'cyclone_spin') {
+          if (attackTimer < 0.85) {
+            droneGroup.rotation.y += delta * 30;
+            cycloneMesh.position.copy(droneGroup.position).add(new THREE.Vector3(0, 1.6, 0));
+            cycloneMesh.rotation.y -= delta * 35;
+            cycloneMat.opacity = Math.sin((attackTimer / 0.85) * Math.PI) * 0.85;
+            screenShakeIntensity = 1.4;
+            if (!currentAttack.damageApplied && attackTimer > 0.3) {
+              currentAttack.damageApplied = true;
+              spawnDamagePopup('🌪️ 1,400 SWEEP DAMAGE!', '#10B981', droneGroup.position, 1.1);
+              applyMonsterCombatHit(droneGroup.position, 12, 1400, 'Walis Cyclone Spin');
+            }
+          } else {
+            cycloneMat.opacity = 0;
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'hydro_wave') {
+          if (attackTimer < 0.95) {
+            const prog = attackTimer / 0.95;
+            hydroWaveMesh.position.lerpVectors(currentAttack.origin, currentAttack.impactPoint, prog);
+            hydroWaveMesh.position.y = 0.2;
+            hydroWaveMesh.rotation.z = currentAttack.heading;
+            hydroWaveMesh.scale.setScalar(1 + prog * 2.2);
+            hydroMat.opacity = Math.sin(prog * Math.PI) * 0.85;
+            if (!currentAttack.damageApplied && attackTimer > 0.45) {
+              currentAttack.damageApplied = true;
+              screenShakeIntensity = 1.3;
+              spawnDamagePopup('🌊 800 PURIFIED DELUGE!', '#06B6D4', currentAttack.impactPoint, 1.05);
+              applyMonsterCombatHit(currentAttack.impactPoint, 14, 800, 'Tabo Hydro Surge');
+            }
+          } else {
+            hydroMat.opacity = 0;
+            currentAttack = null;
+          }
+        } else if (currentAttack.type === 'pun') {
+          if (attackTimer > 1.0) {
+            currentAttack = null;
+          }
+        }
+      }
+
+      // Update 3D Floating Combat Damage Popups
+      for (let i = floatingDamageItems.length - 1; i >= 0; i--) {
+        const item = floatingDamageItems[i];
+        item.timer += delta;
+        item.sprite.position.y += item.velY * delta;
+        const prog = item.timer / item.maxTime;
+        item.sprite.material.opacity = Math.max(0, 1 - prog);
+        if (item.timer >= item.maxTime) {
+          scene.remove(item.sprite);
+          item.sprite.material.dispose();
+          floatingDamageItems.splice(i, 1);
+        }
+      }
+
+      // Smart Nearest-Target Auto-Lock Nearest Monster Search & Reticle Animation
+      const nearestTarget = monsterSpawnEngine.getNearestAliveMonster(
+        { x: droneGroup.position.x, z: droneGroup.position.z },
+        42
+      );
+
+      if (nearestTarget && controlSettings.autoTargetLock !== false) {
+        reticleGroup.visible = true;
+        const tPos = nearestTarget.monster.mesh.position;
+        const targetElevation = nearestTarget.monster.isBoss ? 11.2 : 3.4;
+        reticleGroup.position.set(tPos.x, tPos.y + targetElevation, tPos.z);
+        reticleRing.rotation.z = time * 3.5;
+        const pulse = 1 + Math.sin(time * 12) * 0.14;
+        reticleRing.scale.set(pulse, pulse, 1);
+
+        // Update range canvas HUD
+        reticleCtx.clearRect(0, 0, 256, 64);
+        reticleCtx.fillStyle = 'rgba(239, 68, 68, 0.88)';
+        reticleCtx.beginPath();
+        reticleCtx.roundRect(6, 6, 244, 52, 14);
+        reticleCtx.fill();
+        reticleCtx.lineWidth = 2;
+        reticleCtx.strokeStyle = '#FFFFFF';
+        reticleCtx.stroke();
+        reticleCtx.fillStyle = '#FFFFFF';
+        reticleCtx.font = 'bold 20px monospace';
+        reticleCtx.textAlign = 'center';
+        reticleCtx.fillText(`🎯 LOCK: ${nearestTarget.distance}m`, 128, 38);
+        reticleTexture.needsUpdate = true;
+      } else {
+        reticleGroup.visible = false;
+      }
+
+      // Animate Auto Idle Attack Ring & Idle Sweep
+      if (isAutoAttackMode) {
+        autoAttackRing.position.copy(droneGroup.position);
+        autoAttackRing.position.y = 0.08;
+        autoAttackRing.rotation.z += delta * 2.5;
+
+        // In idle (standing still): if nearest target exists, face it; otherwise sweep 360 degrees.
+        // Only update droneHeading — rotation.y is driven exclusively by the lerp below.
+        const isStationary = !keys.w && !keys.s && !keys.a && !keys.d && !targetPos;
+        if (isStationary) {
+          if (nearestTarget && controlSettings.autoTargetLock !== false) {
+            const dx = nearestTarget.monster.mesh.position.x - droneGroup.position.x;
+            const dz = nearestTarget.monster.mesh.position.z - droneGroup.position.z;
+            droneHeading = Math.atan2(dx, -dz);
+          } else {
+            droneHeading += delta * 0.45;
+          }
+        }
+
+        // Periodic auto attack pulse every 1.4s targeting nearest monster
+        autoAttackTimer += delta;
+        if (autoAttackTimer >= 1.4) {
+          autoAttackTimer = 0;
+          if (nearestTarget && controlSettings.autoTargetLock !== false) {
+            applyMonsterCombatHit(nearestTarget.monster.mesh.position, 14, 550, 'Auto Idle Attack');
+          } else {
+            applyMonsterCombatHit(droneGroup.position, 12, 550, 'Auto Idle Attack');
+          }
+        }
+      }
+
+      // Update 3D Monster Engine (Giga Buwaya Titans + Small Monster Farms)
+      monsterSpawnEngine.update(delta, { x: droneGroup.position.x, z: droneGroup.position.z });
 
       // 14. Camera Handling (Isometric Chase vs Follow vs Top-Down)
       let camX: number;
@@ -1187,6 +2164,16 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       camera.position.y = THREE.MathUtils.lerp(camera.position.y, camY, 0.09);
       camera.position.z = THREE.MathUtils.lerp(camera.position.z, camZ, 0.09);
       camera.lookAt(droneGroup.position.x, droneGroup.position.y + 0.8, droneGroup.position.z);
+
+      // Screen Shake Physics (Anime Impact Vibration)
+      if (screenShakeIntensity > 0.005) {
+        camera.position.x += (Math.random() - 0.5) * screenShakeIntensity;
+        camera.position.y += (Math.random() - 0.5) * screenShakeIntensity;
+        camera.position.z += (Math.random() - 0.5) * screenShakeIntensity * 0.4;
+        screenShakeIntensity *= Math.pow(0.04, delta);
+      } else {
+        screenShakeIntensity = 0;
+      }
 
       // Rotate Monument Crystal Cores
       monumentMeshes.forEach(({ mesh }) => {
@@ -1249,6 +2236,22 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         if (foundNearbyDistrict) SoundFX.playWarp();
       }
 
+      // 16. PPF Contact Solver Dynamic Cloth Physics Step (Banner & Cape)
+      const windTurbulence = new THREE.Vector3(
+        Math.sin(time * 2.2) * 1.5 + 2.2,
+        Math.cos(time * 1.6) * 0.35,
+        Math.sin(time * 2.8) * 1.2 + 1.0
+      );
+      ppfBanner.step(delta, 3, [], windTurbulence);
+
+      const isTraveling = (keys.w || keys.s || keys.a || keys.d || (mobileInput.active && mobileInput.intensity > 0.05) || !!targetPos);
+      const capeWind = new THREE.Vector3(
+        -Math.sin(droneHeading) * speed * (isTraveling ? 1.3 : 0.15) + windTurbulence.x * 0.25,
+        -0.2,
+        Math.cos(droneHeading) * speed * (isTraveling ? 1.3 : 0.15) + windTurbulence.z * 0.25
+      );
+      ppfCape.step(delta, 3, [avatarBodyCollider], capeWind);
+
       renderer.render(scene, camera);
     };
 
@@ -1264,8 +2267,39 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     return () => {
       cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('piso-world-regenerate', handleWorldRegenerate);
+      scene.remove(activeTerranianEngine.worldGroup);
+      activeTerranianEngine.dispose();
+
+      activeMiningEngine.dispose();
+      activeTerranianEngine.dispose();
+      window.removeEventListener('piso-ppf-update-physics', handlePpfUpdateEvent);
+      scene.remove(ppfBanner.mesh);
+      scene.remove(poleL);
+      scene.remove(poleR);
+      scene.remove(crossBar);
+      droneGroup.remove(ppfCape.mesh);
+      ppfBanner.dispose();
+      ppfCape.dispose();
+      poleGeo.dispose();
+      crossBarGeo.dispose();
+      poleMat.dispose();
+      monsterSpawnEngine.dispose();
+      scene.remove(reticleGroup);
+      reticleTexture.dispose();
+      reticleMat.dispose();
+      reticleRingGeo.dispose();
       window.removeEventListener('piso-avatar-chat', handleAvatarChatEvent);
+      window.removeEventListener('piso-trigger-superpower', handleSuperPowerEvent);
+      window.removeEventListener('piso-trigger-screen-shake', handleScreenShakeEvent);
+      window.removeEventListener('piso-toggle-auto-attack', handleAutoAttackEvent);
+      scene.remove(autoAttackRing);
       droneGroup.remove(speechBubbleSprite);
+      scene.remove(laserBeamGroup);
+      scene.remove(kiChargeSphere);
+      scene.remove(explosionGroup);
+      scene.remove(flyingTsinelasGroup);
+      scene.remove(bamSprite);
       speechTexture.dispose();
       speechMat.dispose();
       window.removeEventListener('piso-player-jump', handlePlayerJumpEvent);
@@ -1280,6 +2314,10 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       jumpRingGeo.dispose();
       singleJumpEffect.material.dispose();
       doubleJumpEffect.material.dispose();
+      window.removeEventListener('piso-mobile-move', handleMobileMoveEvent);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
@@ -1295,5 +2333,5 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     };
   }, [avatarSkin, avatarMode, humanAvatar, controlSettings, playerPosRef]);
 
-  return <div ref={containerRef} className="w-full h-full cursor-crosshair select-none" />;
+  return <div ref={containerRef} className="w-full h-full cursor-crosshair select-none" style={{ touchAction: 'none' }} />;
 };
