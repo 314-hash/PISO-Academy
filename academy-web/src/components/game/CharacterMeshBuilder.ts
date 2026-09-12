@@ -20,7 +20,15 @@ export interface CharacterMeshInstance {
   sunHaloGroup: THREE.Group | null;
   groundRing: THREE.Mesh | null;
   auraLight: THREE.PointLight | null;
-  updateAnimation: (walkPhase: number, isMoving: boolean, delta: number, time: number) => void;
+  updateAnimation: (
+    walkPhase: number,
+    isMoving: boolean,
+    delta: number,
+    time: number,
+    isJumping?: boolean,
+    isDoubleJump?: boolean,
+    jumpVelocityY?: number
+  ) => void;
 }
 
 export interface PetDroneInstance {
@@ -782,8 +790,55 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
     rightKnee: rightLeg.kneeGroup,
   };
 
-  const updateAnimation = (walkPhase: number, isMoving: boolean, delta: number, time: number) => {
-    if (isMoving) {
+  const updateAnimation = (
+    walkPhase: number,
+    isMoving: boolean,
+    delta: number,
+    time: number,
+    isJumping: boolean = false,
+    isDoubleJump: boolean = false,
+    jumpVelocityY: number = 0
+  ) => {
+    if (isJumping) {
+      // Dynamic Airborne / Leap Pose
+      const isAscending = jumpVelocityY > 0;
+      if (isAscending) {
+        // Tucked knees, arms balanced back/out, cape trailing down/back
+        rig.leftLeg.rotation.x = THREE.MathUtils.lerp(rig.leftLeg.rotation.x, -0.45, 0.2);
+        rig.rightLeg.rotation.x = THREE.MathUtils.lerp(rig.rightLeg.rotation.x, -0.32, 0.2);
+        rig.leftKnee.rotation.x = THREE.MathUtils.lerp(rig.leftKnee.rotation.x, 0.68, 0.2);
+        rig.rightKnee.rotation.x = THREE.MathUtils.lerp(rig.rightKnee.rotation.x, 0.55, 0.2);
+
+        rig.leftArm.rotation.x = THREE.MathUtils.lerp(rig.leftArm.rotation.x, -0.65, 0.2);
+        rig.rightArm.rotation.x = THREE.MathUtils.lerp(rig.rightArm.rotation.x, 0.65, 0.2);
+        rig.torso.rotation.x = THREE.MathUtils.lerp(rig.torso.rotation.x, 0.12, 0.2);
+
+        if (capeGroup) {
+          capeGroup.rotation.x = THREE.MathUtils.lerp(capeGroup.rotation.x, 0.65, 0.25);
+          capeGroup.rotation.z = Math.sin(time * 12) * 0.08;
+        }
+      } else {
+        // Descending / Pre-landing pose: legs straightening slightly, arms out for stability
+        rig.leftLeg.rotation.x = THREE.MathUtils.lerp(rig.leftLeg.rotation.x, 0.18, 0.2);
+        rig.rightLeg.rotation.x = THREE.MathUtils.lerp(rig.rightLeg.rotation.x, 0.12, 0.2);
+        rig.leftKnee.rotation.x = THREE.MathUtils.lerp(rig.leftKnee.rotation.x, 0.25, 0.2);
+        rig.rightKnee.rotation.x = THREE.MathUtils.lerp(rig.rightKnee.rotation.x, 0.25, 0.2);
+
+        rig.leftArm.rotation.x = THREE.MathUtils.lerp(rig.leftArm.rotation.x, -0.25, 0.2);
+        rig.rightArm.rotation.x = THREE.MathUtils.lerp(rig.rightArm.rotation.x, -0.25, 0.2);
+        rig.torso.rotation.x = THREE.MathUtils.lerp(rig.torso.rotation.x, -0.06, 0.2);
+
+        if (capeGroup) {
+          capeGroup.rotation.x = THREE.MathUtils.lerp(capeGroup.rotation.x, -0.15, 0.2);
+        }
+      }
+
+      // Sun Halo spins faster during aerial leaps (especially on Double Jump!)
+      if (sunHaloGroup) {
+        sunHaloGroup.rotation.z += delta * (isDoubleJump ? 6.5 : 3.5);
+      }
+      rootGroup.position.y = 0.05;
+    } else if (isMoving) {
       const sinWalk = Math.sin(walkPhase);
 
       rig.leftLeg.rotation.x = sinWalk * 0.58;
@@ -797,6 +852,7 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
 
       rig.torso.position.y = 0.85 + Math.abs(sinWalk) * 0.04;
       rig.torso.rotation.y = -sinWalk * 0.07;
+      rig.torso.rotation.x = THREE.MathUtils.lerp(rig.torso.rotation.x, 0, 0.15);
       rig.head.rotation.y = sinWalk * 0.035;
 
       rootGroup.position.y = 0.05 + Math.abs(sinWalk) * 0.03;
@@ -821,6 +877,7 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
 
       rig.torso.position.y = 0.85 + Math.sin(time * 2.0) * 0.015;
       rig.torso.rotation.y = THREE.MathUtils.lerp(rig.torso.rotation.y, 0, 0.1);
+      rig.torso.rotation.x = THREE.MathUtils.lerp(rig.torso.rotation.x, 0, 0.1);
       rootGroup.position.y = 0.05;
 
       // Gentle cape breeze

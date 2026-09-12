@@ -281,15 +281,35 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
           </>
         )}
 
-        {/* 6. On-Screen Navigation Controls Reminder */}
-        <div className="absolute bottom-24 right-4 z-20 hidden md:flex flex-col items-end space-y-1 font-mono text-[10px] text-slate-400 bg-slate-950/70 p-2 rounded-xl border border-slate-800 backdrop-blur-sm">
-          <span>Move: <strong className="text-white">WASD / Arrows</strong></span>
-          <span>Turbo: <strong className="text-amber-400">Shift</strong></span>
-          <span>Wallet Studio: <strong className="text-amber-400">[K] / [W]</strong> Terminal</span>
-          <span>Next Mentor: <strong className="text-purple-400">[N]</strong> Autopilot</span>
-          <span>Cam Orbit: <strong className="text-cyan-400">Right-Click Drag</strong></span>
-          <span>Zoom: <strong className="text-cyan-400">Mouse Wheel</strong></span>
-          <span>Interact / Next Dest: <strong className="text-amber-400">[E]</strong> / Click</span>
+        {/* 6. On-Screen Navigation Controls Reminder & Quick Jump Action */}
+        <div className="absolute bottom-24 right-4 z-20 flex flex-col items-end space-y-2">
+          {/* Quick Jump Action Button (Touch & Desktop) */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('piso-player-jump'))}
+            title="Jump / Double Jump (Spacebar)"
+            className="group flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 border border-amber-500/40 text-amber-300 hover:text-amber-200 font-mono text-xs font-bold transition shadow-[0_0_20px_rgba(245,158,11,0.2)] backdrop-blur-md"
+          >
+            <span className="flex items-center space-x-0.5 text-amber-400 font-black">
+              <span>▲</span>
+              <span className="text-[10px]">▲</span>
+            </span>
+            <span>JUMP / 2X</span>
+            <span className="px-1.5 py-0.5 rounded bg-amber-500/30 text-[10px] text-amber-200 border border-amber-500/40">
+              SPACE
+            </span>
+          </button>
+
+          <div className="hidden md:flex flex-col items-end space-y-1 font-mono text-[10px] text-slate-400 bg-slate-950/70 p-2 rounded-xl border border-slate-800 backdrop-blur-sm">
+            <span>Move: <strong className="text-white">WASD / Arrows</strong></span>
+            <span>Jump / Double Jump: <strong className="text-amber-400">Space [2x]</strong></span>
+            <span>Turbo: <strong className="text-amber-400">Shift</strong></span>
+            <span>Wallet Studio: <strong className="text-amber-400">[K] / [W]</strong> Terminal</span>
+            <span>Next Mentor: <strong className="text-purple-400">[N]</strong> Autopilot</span>
+            <span>Cam Orbit: <strong className="text-cyan-400">Right-Click Drag</strong></span>
+            <span>Zoom: <strong className="text-cyan-400">Mouse Wheel</strong></span>
+            <span>Interact / Next Dest: <strong className="text-amber-400">[E]</strong> / Click</span>
+          </div>
         </div>
       </div>
 

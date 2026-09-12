@@ -127,6 +127,13 @@ export const GameTutorialModal: React.FC<GameTutorialModalProps> = ({ onClose })
                 </div>
 
                 <div className="p-4 rounded-xl bg-[#161F30] border border-slate-800 space-y-2">
+                  <span className="font-mono text-xs font-bold text-amber-400 uppercase">Jump & Double Jump (Space)</span>
+                  <p className="text-xs text-slate-400">
+                    Pindutin ang <strong>Spacebar</strong> para lumukso pataas. Pindutin muli ang <strong>Space</strong> habang nasa ere para sa <strong>Double Jump</strong> thruster boost!
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-[#161F30] border border-slate-800 space-y-2">
                   <span className="font-mono text-xs font-bold text-amber-400 uppercase">Turbo Boost (Shift)</span>
                   <p className="text-xs text-slate-400">
                     Pindutin ang <strong>Shift</strong> habang lumilipad para sa 2x afterburner speed boost (24 m/s).

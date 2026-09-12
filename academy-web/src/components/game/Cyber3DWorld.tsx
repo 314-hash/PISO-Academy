@@ -531,8 +531,68 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     let prevPointerX = 0;
     let prevPointerY = 0;
 
-    // 12. Input Handling & Fast Navigation Destinations
-    const keys = { w: false, s: false, a: false, d: false, shift: false };
+    // 12. Input Handling & Jump Mechanics
+    const keys = { w: false, s: false, a: false, d: false, shift: false, space: false };
+
+    // Jump & Double Jump State
+    let jumpCount = 0; // 0 = grounded, 1 = single jump, 2 = double jump
+    let jumpVelocityY = 0;
+    let jumpOffsetY = 0;
+    const JUMP_FORCE = 11.5;
+    const DOUBLE_JUMP_FORCE = 12.5;
+    const GRAVITY = 32.0;
+
+    // Visual jump shockwave rings (pool of 2 rings for single & double jump)
+    const jumpRingGeo = new THREE.RingGeometry(0.5, 0.85, 32);
+    const createJumpRing = (color: number) => {
+      const mat = new THREE.MeshBasicMaterial({
+        color,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(jumpRingGeo, mat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.05;
+      scene.add(ring);
+      return { mesh: ring, material: mat, active: false, scale: 1, opacity: 0 };
+    };
+
+    const singleJumpEffect = createJumpRing(0x06B6D4); // Cyan shockwave for 1st jump
+    const doubleJumpEffect = createJumpRing(0xF59E0B); // Amber radiant shockwave for double jump
+
+    const triggerJumpFX = (fx: typeof singleJumpEffect, x: number, y: number, z: number) => {
+      fx.mesh.position.set(x, Math.max(0.04, y), z);
+      fx.scale = 0.8;
+      fx.opacity = 0.95;
+      fx.material.opacity = 0.95;
+      fx.mesh.scale.set(0.8, 0.8, 1);
+      fx.active = true;
+    };
+
+    const triggerJump = () => {
+      if (jumpCount === 0) {
+        // First jump: launch upwards from ground
+        jumpCount = 1;
+        jumpVelocityY = JUMP_FORCE;
+        jumpOffsetY = 0.08;
+        SoundFX.playJump();
+        triggerJumpFX(singleJumpEffect, droneGroup.position.x, droneGroup.position.y, droneGroup.position.z);
+      } else if (jumpCount === 1) {
+        // Double jump: mid-air thruster boost!
+        jumpCount = 2;
+        jumpVelocityY = DOUBLE_JUMP_FORCE;
+        SoundFX.playDoubleJump();
+        triggerJumpFX(doubleJumpEffect, droneGroup.position.x, droneGroup.position.y, droneGroup.position.z);
+      }
+    };
+
+    const handlePlayerJumpEvent = () => {
+      triggerJump();
+    };
+
+    window.addEventListener('piso-player-jump', handlePlayerJumpEvent);
 
     // Target navigation state
     const raycaster = new THREE.Raycaster();
@@ -635,6 +695,12 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
       const k = e.key.toLowerCase();
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        keys.space = true;
+        triggerJump();
+        return;
+      }
       if (k === 'w' || k === 'arrowup') keys.w = true;
       if (k === 's' || k === 'arrowdown') keys.s = true;
       if (k === 'a' || k === 'arrowleft') keys.a = true;
@@ -719,6 +785,9 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     const handleKeyUp = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
+      if (e.code === 'Space' || e.key === ' ') {
+        keys.space = false;
+      }
       if (k === 'w' || k === 'arrowup') keys.w = false;
       if (k === 's' || k === 'arrowdown') keys.s = false;
       if (k === 'a' || k === 'arrowleft') keys.a = false;
@@ -939,18 +1008,55 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       droneGroup.position.x = Math.max(-70, Math.min(70, droneGroup.position.x));
       droneGroup.position.z = Math.max(-70, Math.min(70, droneGroup.position.z));
 
+      // Update Jump & Double Jump Physics
+      if (jumpCount > 0 || jumpOffsetY > 0) {
+        jumpOffsetY += jumpVelocityY * delta;
+        jumpVelocityY -= GRAVITY * delta;
+
+        if (jumpOffsetY <= 0) {
+          jumpOffsetY = 0;
+          jumpVelocityY = 0;
+          jumpCount = 0; // Touchdown reset!
+        }
+      }
+
+      // Animate Jump FX Rings
+      [singleJumpEffect, doubleJumpEffect].forEach((fx) => {
+        if (fx.active) {
+          fx.scale += delta * 12;
+          fx.opacity -= delta * 2.4;
+          if (fx.opacity <= 0) {
+            fx.active = false;
+            fx.opacity = 0;
+          }
+          fx.mesh.scale.set(fx.scale, fx.scale, 1);
+          fx.material.opacity = Math.max(0, fx.opacity);
+        }
+      });
+
       // Humanoid Walking Rig vs Drone Hover Mechanics
       const isMoving = (moveX !== 0 || moveZ !== 0) || targetPos !== null;
+      const isJumping = jumpCount > 0 || jumpOffsetY > 0.04;
 
       if (avatarMode === 'human' && characterInstance) {
-        if (isMoving) {
+        if (isMoving && !isJumping) {
           humanWalkPhase += delta * (keys.shift ? 14 : 9);
         }
-        characterInstance.updateAnimation(humanWalkPhase, isMoving, delta, time);
-        droneGroup.position.y = isMoving ? 0.05 + Math.abs(Math.sin(humanWalkPhase)) * 0.03 : 0.05;
+        characterInstance.updateAnimation(
+          humanWalkPhase,
+          isMoving,
+          delta,
+          time,
+          isJumping,
+          jumpCount === 2,
+          jumpVelocityY
+        );
+        const groundY = isMoving && !isJumping ? 0.05 + Math.abs(Math.sin(humanWalkPhase)) * 0.03 : 0.05;
+        droneGroup.position.y = groundY + jumpOffsetY;
       } else {
-        // Drone Hover Bob
-        droneGroup.position.y = 1.4 + Math.sin(time * 3.5) * 0.12;
+        // Drone Hover Bob + Jump Offset
+        const hoverY = 1.4 + Math.sin(time * 3.5) * 0.12;
+        droneGroup.position.y = hoverY + jumpOffsetY;
       }
 
       // Companion Pet Recon Drone spring follow physics
@@ -1069,12 +1175,18 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     return () => {
       cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('piso-player-jump', handlePlayerJumpEvent);
       window.removeEventListener('piso-navigate-to-mentor', handleNavigateToMentorEvent);
       window.removeEventListener('piso-cycle-next-mentor', handleCycleNextMentorEvent);
       window.removeEventListener('piso-cancel-autopilot', handleCancelAutopilot);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('resize', handleResize);
+      scene.remove(singleJumpEffect.mesh);
+      scene.remove(doubleJumpEffect.mesh);
+      jumpRingGeo.dispose();
+      singleJumpEffect.material.dispose();
+      doubleJumpEffect.material.dispose();
       container.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
