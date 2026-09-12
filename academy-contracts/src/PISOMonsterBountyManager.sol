@@ -92,12 +92,23 @@ contract PISOMonsterBountyManager {
         totalClaimedBounties += bounty;
         playerExp[player] += m.baseExp;
 
-        // Level Up Calculation
+        // Level Up Calculation aligned with frontend PlayerStatsEngine & PISOMineCraft
         uint8 currentLevel = playerLevel[player] > 0 ? playerLevel[player] : 1;
-        uint256 nextLevelExp = uint256(currentLevel) * 350;
-        if (playerExp[player] >= nextLevelExp && currentLevel < 100) {
-            playerLevel[player] = currentLevel + 1;
-            emit PlayerLeveledUp(player, playerLevel[player]);
+        uint8 startLevel = currentLevel;
+
+        while (currentLevel < 100) {
+            uint256 nextExp = getExpRequiredForLevel(currentLevel);
+            if (playerExp[player] >= nextExp) {
+                playerExp[player] -= nextExp;
+                currentLevel += 1;
+            } else {
+                break;
+            }
+        }
+
+        if (currentLevel > startLevel) {
+            playerLevel[player] = currentLevel;
+            emit PlayerLeveledUp(player, currentLevel);
         }
 
         if (m.tier == MonsterTier.GIGA_BUWAYA_TITAN) {
@@ -138,5 +149,25 @@ contract PISOMonsterBountyManager {
 
     function remainingPlayerPool() external view returns (uint256) {
         return TOTAL_PLAYER_BOUNTY_POOL > totalClaimedBounties ? TOTAL_PLAYER_BOUNTY_POOL - totalClaimedBounties : 0;
+    }
+
+    /**
+     * @notice Deterministic EXP requirement for next level.
+     *         Matches frontend PlayerStatsEngine formula exactly:
+     *         100 + (lvl - 1) * 150 + ((lvl - 1) ** 2) * 20
+     */
+    function getExpRequiredForLevel(uint8 lvl) public pure returns (uint256) {
+        if (lvl <= 1) return 100;
+        uint256 n = uint256(lvl) - 1;
+        return 100 + n * 150 + n * n * 20;
+    }
+
+    /**
+     * @notice Returns player level, current exp, and exp required for next level.
+     */
+    function getPlayerLevelInfo(address player) external view returns (uint8 level, uint256 currentExp, uint256 expToNextLevel) {
+        level = playerLevel[player] > 0 ? playerLevel[player] : 1;
+        currentExp = playerExp[player];
+        expToNextLevel = getExpRequiredForLevel(level);
     }
 }

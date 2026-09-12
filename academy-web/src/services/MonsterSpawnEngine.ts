@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { PlayerStatsEngine } from './PlayerStatsEngine';
 import { SoundFX } from './soundFX';
+import { ElementalCombatEngine } from './ElementalCombatEngine';
 
 export type MonsterType = 'croc_titan' | 'snake' | 'vulture' | 'komodo' | 'hyena';
 
@@ -937,11 +938,31 @@ export class MonsterSpawnEngine {
           continue;
         }
 
-        // 2. Allowed! Calculate scaled damage with Player Stats & Gear Buffs
-        const { finalDamage, isCrit, gearBonusDamage } = PlayerStatsEngine.calculateDamage(baseSkillDamage);
+        // 2. Allowed! Anti-Cheat & Proof-of-Combat Verification with Player Stats
+        const { finalDamage, isCrit } = PlayerStatsEngine.calculateDamage(baseSkillDamage);
+        const combatVerification = ElementalCombatEngine.verifyAndProcessAttack({
+          playerPos: { x: playerPos.x, y: 0, z: playerPos.z },
+          monsterPos: { x: m.mesh.position.x, y: m.mesh.position.y, z: m.mesh.position.z },
+          hitRadius: effectiveHitRadius,
+          proposedDamage: finalDamage,
+          isBoss: m.isBoss,
+          monsterName: m.name,
+          monsterType: m.type,
+          monsterDef: m.def,
+        });
 
-        // Apply monster DEF mitigation
-        const mitigatedDmg = Math.max(50, finalDamage - m.def * 2);
+        if (!combatVerification.valid) {
+          if (combatVerification.reason) {
+            this.spawnFloatingText(
+              combatVerification.reason,
+              m.mesh.position.clone().add(new THREE.Vector3(0, m.isBoss ? 7 : 3, 0)),
+              '#F59E0B'
+            );
+          }
+          continue;
+        }
+
+        const mitigatedDmg = combatVerification.mitigatedDamage;
         m.currentHp = Math.max(0, m.currentHp - mitigatedDmg);
         const hpPct = m.currentHp / m.maxHp;
 
@@ -967,6 +988,32 @@ export class MonsterSpawnEngine {
           isCrit ? '#FACC15' : m.isBoss ? '#FB923C' : '#38BDF8'
         );
 
+        // Spawn incremental combat drop notifications
+        if (combatVerification.droppedMaterials.length > 0) {
+          for (const d of combatVerification.droppedMaterials) {
+            this.spawnFloatingText(
+              `${d.material.icon} +${d.count} ${d.material.name}`,
+              m.mesh.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2.5, m.isBoss ? 5 : 2, (Math.random() - 0.5) * 2.5)),
+              '#C084FC'
+            );
+          }
+        }
+        if (combatVerification.expAward > 0) {
+          this.spawnFloatingText(
+            `+${combatVerification.expAward} EXP`,
+            m.mesh.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.5, m.isBoss ? 5.5 : 2.0, (Math.random() - 0.5) * 1.5)),
+            '#10B981'
+          );
+        }
+
+        if (combatVerification.microPisoAward > 0) {
+          this.spawnFloatingText(
+            `💰 +${combatVerification.microPisoAward} ₱`,
+            m.mesh.position.clone().add(new THREE.Vector3(0, m.isBoss ? 4.5 : 1.8, 0)),
+            '#F59E0B'
+          );
+        }
+
         // Play hit sound
         try {
           SoundFX.playLaser();
@@ -988,7 +1035,7 @@ export class MonsterSpawnEngine {
           remainingHp: m.currentHp,
           slain,
           bountyPiso: m.bountyPiso,
-          expReward: m.expReward,
+          expReward: m.expReward + combatVerification.expAward,
           position: m.mesh.position.clone(),
         });
       }
@@ -1004,19 +1051,32 @@ export class MonsterSpawnEngine {
     // Record kill in stats engine & award EXP + $PISO tokens
     PlayerStatsEngine.recordMonsterKill(m.name, m.isBoss, m.expReward, m.bountyPiso);
 
+    // Roll guaranteed elemental drops from slaying the monster
+    const drops = ElementalCombatEngine.processMonsterSlayDrops(m.type, m.isBoss);
+    for (const d of drops) {
+      this.spawnFloatingText(
+        `${d.material.icon} +${d.count} ${d.material.name}`,
+        m.mesh.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 3, m.isBoss ? 7 : 3.5, (Math.random() - 0.5) * 3)),
+        '#38BDF8'
+      );
+    }
+
+    // Prominent Floating EXP & Bounty Banner on Kill
+    this.spawnFloatingText(
+      `✨ +${m.expReward.toLocaleString()} EXP • 💰 +${m.bountyPiso.toLocaleString()} ₱`,
+      m.mesh.position.clone().add(new THREE.Vector3(0, m.isBoss ? 7.5 : 3.5, 0)),
+      m.isBoss ? '#FDE047' : '#10B981'
+    );
+    try {
+      SoundFX.playCoins();
+    } catch {}
+
     if (m.isBoss) {
       // Massive Tax Return Coin Explosion
       this.triggerTaxReturnFestival(m.mesh.position.clone(), m.bountyPiso);
       try {
         SoundFX.playLevelUp?.();
       } catch {}
-    } else {
-      // Small bounty pop
-      this.spawnFloatingText(
-        `+${m.expReward} EXP • +${m.bountyPiso} ₱PISO`,
-        m.mesh.position.clone().add(new THREE.Vector3(0, 3.5, 0)),
-        '#10B981'
-      );
     }
   }
 

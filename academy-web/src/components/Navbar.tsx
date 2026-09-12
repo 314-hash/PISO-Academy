@@ -29,6 +29,7 @@ export const Navbar: React.FC = () => {
     toggleGameMode,
     wallet,
     connectInjectedWallet,
+    openConnectWalletModal,
     createBurnerWallet,
     requestFaucet,
     xp,
@@ -142,30 +143,34 @@ export const Navbar: React.FC = () => {
 
             {/* Wallet Status / Connect Button */}
             {wallet.isConnected && wallet.address ? (
-              <div className="flex items-center space-x-2 bg-slate-900 border border-slate-700/80 px-3 py-1 rounded-lg">
+              <button
+                onClick={openConnectWalletModal}
+                className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-amber-500/50 px-3 py-1.5 rounded-xl transition-all"
+                title="Click to view wallet details or switch account"
+              >
                 <Coins className="w-3.5 h-3.5 text-amber-400" />
                 <span className="text-xs font-mono font-bold text-slate-200">
                   {parseFloat(wallet.balance).toFixed(2)} ₱
                 </span>
                 <span className="text-slate-600">|</span>
-                <span className="text-xs font-mono text-slate-400" title={wallet.address}>
+                <span className="text-xs font-mono text-slate-400">
                   {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
                 </span>
-                <span className="text-[10px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700 uppercase">
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700 uppercase font-mono">
                   {wallet.type}
                 </span>
-              </div>
+              </button>
             ) : (
               <div className="flex items-center space-x-1.5">
                 <button
-                  onClick={connectInjectedWallet}
-                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-sm transition-all"
+                  onClick={openConnectWalletModal}
+                  className="px-3.5 py-1.5 text-xs font-black uppercase tracking-wider rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 shadow-md shadow-amber-500/20 transition-all active:scale-95"
                 >
                   Connect Wallet
                 </button>
                 <button
                   onClick={createBurnerWallet}
-                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all"
+                  className="px-2.5 py-1.5 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all"
                   title="Generate instant burner wallet"
                 >
                   Burner

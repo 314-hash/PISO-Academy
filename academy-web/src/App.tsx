@@ -12,6 +12,7 @@ import { ProjectDirectory } from './components/ProjectDirectory';
 import { PisoWorldMap3D } from './components/PisoWorldMap3D';
 import { CyberGameEngine } from './components/game/CyberGameEngine';
 import { PisoP2PChatRoom } from './components/game/PisoP2PChatRoom';
+import { ConnectWalletModal } from './components/ConnectWalletModal';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export const AppContent: React.FC = () => {
@@ -19,6 +20,8 @@ export const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0B0F17] text-slate-100 selection:bg-amber-500/30 selection:text-amber-300">
+      {/* Global Connect Wallet Modal */}
+      <ConnectWalletModal />
       {/* Global Notification Banner */}
       {notification && (
         <div className="fixed bottom-20 sm:bottom-24 right-6 z-50 max-w-md animate-bounce-short">

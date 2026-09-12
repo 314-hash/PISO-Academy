@@ -28,6 +28,16 @@ import {
   Wand2,
   Crown,
   Image as ImageIcon,
+  ShoppingBag,
+  Tag,
+  Gavel,
+  Coins,
+  Clock,
+  ArrowUpRight,
+  Package,
+  Flame,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   FILIPINO_ITEMS,
@@ -36,6 +46,17 @@ import {
   ItemSlot,
   EQUIP_ALL_PRESET,
 } from '../../data/filipinoCultureItems';
+import {
+  PisoEconomyService,
+  OnChainWeaponGear,
+  OnChainRelic,
+  P2PAuctionListing,
+} from '../../services/pisoEconomyService';
+import {
+  ElementalCombatEngine,
+  ElementalMaterial,
+  ElementalCategory,
+} from '../../services/ElementalCombatEngine';
 
 interface DroneSkinData {
   id: AvatarSkinId;
@@ -444,9 +465,10 @@ const HumanoidPreviewCanvas: React.FC<HumanoidPreviewCanvasProps> = ({ config, i
 
 interface AvatarHangarModalProps {
   onClose: () => void;
+  initialTab?: 'human' | 'pinoy' | 'drone' | 'inventory';
 }
 
-export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose }) => {
+export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose, initialTab = 'pinoy' }) => {
   const {
     avatarSkin,
     setAvatarSkin,
@@ -456,15 +478,218 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
     setHumanAvatar,
     setNotification,
     setActiveView,
+    avatarNft,
+    wallet,
   } = useAcademy();
 
-  const [activeTab, setActiveTab] = useState<'human' | 'pinoy' | 'drone'>('pinoy');
+  const [activeTab, setActiveTab] = useState<'human' | 'pinoy' | 'drone' | 'inventory'>(initialTab || 'pinoy');
+  const [inventorySubTab, setInventorySubTab] = useState<'gear' | 'bidding' | 'elements'>('gear');
+  const [inventoryFilter, setInventoryFilter] = useState<'all' | 'weapons' | 'relics' | 'blocks'>('all');
   const [rarityFilter, setRarityFilter] = useState<'all' | ItemRarity>('all');
   const [slotFilter, setSlotFilter] = useState<'all' | ItemSlot>('all');
   const [localHuman, setLocalHuman] = useState<HumanAvatarConfig>(humanAvatar);
   const [isWalkingPreview, setIsWalkingPreview] = useState<boolean>(true);
   const [customPrompt, setCustomPrompt] = useState<string>(localHuman.aiPrompt || '');
   const [isAnalyzingImage, setIsAnalyzingImage] = useState<boolean>(false);
+
+  // Inventory & Bidding Marketplace State
+  const [ownedWeapons, setOwnedWeapons] = useState<OnChainWeaponGear[]>(PisoEconomyService.getWeapons());
+  const [ownedRelics, setOwnedRelics] = useState<OnChainRelic[]>(PisoEconomyService.getRelics());
+  const [liveAuctions, setLiveAuctions] = useState<P2PAuctionListing[]>(PisoEconomyService.getAuctions());
+  const [spendablePiso, setSpendablePiso] = useState<number>(PisoEconomyService.getSpendablePiso());
+
+  // Elemental Monster Drops & $PISO Swap State
+  const [elementalMaterials, setElementalMaterials] = useState<Record<string, ElementalMaterial>>(
+    ElementalCombatEngine.getInventoryMaterials()
+  );
+  const [elementFilter, setElementFilter] = useState<'all' | ElementalCategory>('all');
+
+  // Auction Creation Modal State
+  const [auctioningItem, setAuctioningItem] = useState<{
+    name: string;
+    category: P2PAuctionListing['itemCategory'];
+    icon: string;
+    rarity: P2PAuctionListing['rarity'];
+  } | null>(null);
+  const [startBidInput, setStartBidInput] = useState<number>(150);
+  const [buyoutInput, setBuyoutInput] = useState<number>(450);
+  const [durationInput, setDurationInput] = useState<number>(60);
+
+  useEffect(() => {
+    const handleEconomyUpdate = () => {
+      setOwnedWeapons(PisoEconomyService.getWeapons());
+      setOwnedRelics(PisoEconomyService.getRelics());
+      setLiveAuctions(PisoEconomyService.getAuctions());
+      setSpendablePiso(PisoEconomyService.getSpendablePiso());
+      setElementalMaterials(ElementalCombatEngine.getInventoryMaterials());
+    };
+    window.addEventListener('piso-farming-stats-updated', handleEconomyUpdate);
+    window.addEventListener('piso-tokens-deducted', handleEconomyUpdate);
+    window.addEventListener('piso-activity-earned', handleEconomyUpdate);
+    window.addEventListener('piso-weapon-won', handleEconomyUpdate);
+    window.addEventListener('piso-relic-updated', handleEconomyUpdate);
+    window.addEventListener('piso-auction-created', handleEconomyUpdate);
+    window.addEventListener('piso-bid-placed', handleEconomyUpdate);
+    window.addEventListener('piso-auction-sold', handleEconomyUpdate);
+    window.addEventListener('piso-materials-updated', handleEconomyUpdate);
+    window.addEventListener('piso-material-acquired', handleEconomyUpdate);
+    window.addEventListener('piso-material-swapped', handleEconomyUpdate);
+    window.addEventListener('piso-all-materials-swapped', handleEconomyUpdate);
+    return () => {
+      window.removeEventListener('piso-farming-stats-updated', handleEconomyUpdate);
+      window.removeEventListener('piso-tokens-deducted', handleEconomyUpdate);
+      window.removeEventListener('piso-activity-earned', handleEconomyUpdate);
+      window.removeEventListener('piso-weapon-won', handleEconomyUpdate);
+      window.removeEventListener('piso-relic-updated', handleEconomyUpdate);
+      window.removeEventListener('piso-auction-created', handleEconomyUpdate);
+      window.removeEventListener('piso-bid-placed', handleEconomyUpdate);
+      window.removeEventListener('piso-auction-sold', handleEconomyUpdate);
+      window.removeEventListener('piso-materials-updated', handleEconomyUpdate);
+      window.removeEventListener('piso-material-acquired', handleEconomyUpdate);
+      window.removeEventListener('piso-material-swapped', handleEconomyUpdate);
+      window.removeEventListener('piso-all-materials-swapped', handleEconomyUpdate);
+    };
+  }, []);
+
+  // Handler: Swap single elemental material for $PISO tokens
+  const handleSwapSingleMaterial = (materialId: string, count: number = 1) => {
+    const res = ElementalCombatEngine.swapMaterialForPiso(materialId, count);
+    if (res.success) {
+      setElementalMaterials(ElementalCombatEngine.getInventoryMaterials());
+      setSpendablePiso(PisoEconomyService.getSpendablePiso());
+      setNotification({
+        message: res.message,
+        type: 'success',
+      });
+    } else {
+      setNotification({
+        message: res.message,
+        type: 'error',
+      });
+    }
+  };
+
+  // Handler: 1-Click Swap All Materials for $PISO tokens (+10% bonus)
+  const handleSwapAllMaterials = () => {
+    const res = ElementalCombatEngine.swapAllMaterialsForPiso();
+    if (res.success) {
+      setElementalMaterials(ElementalCombatEngine.getInventoryMaterials());
+      setSpendablePiso(PisoEconomyService.getSpendablePiso());
+      setNotification({
+        message: res.message,
+        type: 'success',
+      });
+    } else {
+      setNotification({
+        message: res.message,
+        type: 'info',
+      });
+    }
+  };
+
+  // 1. Suit Up (Isukat) on Avatar (Online & Idle)
+  const handleSuitUp = (itemName: string, category?: string) => {
+    PisoEconomyService.autoSuitItem(itemName, category);
+    const updated = JSON.parse(localStorage.getItem('piso_human_avatar') || '{}');
+    if (updated && Object.keys(updated).length > 0) {
+      setLocalHuman(updated);
+      setHumanAvatar(updated);
+    }
+    setAvatarMode('human');
+    SoundFX.playLevelUp();
+    setNotification({
+      message: `👔 Isinuot sa avatar: "${itemName}"! Nakasukat na sa iyong hero (online at idle)!`,
+      type: 'success',
+    });
+  };
+
+  // 2. Sell Item for Fixed Price in $PISO
+  const handleSellItem = (type: 'weapon' | 'relic' | 'block', id: number | string, count: number = 1) => {
+    const res = PisoEconomyService.sellItemForPiso(type, id, count);
+    if (res.success) {
+      SoundFX.playCoins?.();
+      setOwnedWeapons(PisoEconomyService.getWeapons());
+      setOwnedRelics(PisoEconomyService.getRelics());
+      setSpendablePiso(PisoEconomyService.getSpendablePiso());
+      setNotification({
+        message: `💰 Naibenta ang "${res.itemName}" sa halagang +${res.earnedPiso} $PISO!`,
+        type: 'success',
+      });
+    }
+  };
+
+  // 3. Open Auction Creation Modal
+  const handleOpenAuctionModal = (item: {
+    name: string;
+    category: P2PAuctionListing['itemCategory'];
+    icon: string;
+    rarity: P2PAuctionListing['rarity'];
+  }) => {
+    setAuctioningItem(item);
+    setStartBidInput(150);
+    setBuyoutInput(450);
+    setDurationInput(60);
+    SoundFX.playBlip();
+  };
+
+  // 4. Confirm Auction Listing
+  const handleConfirmCreateAuction = () => {
+    if (!auctioningItem) return;
+    PisoEconomyService.createAuction(auctioningItem, startBidInput, buyoutInput, durationInput);
+    setLiveAuctions(PisoEconomyService.getAuctions());
+    setAuctioningItem(null);
+    setInventorySubTab('bidding');
+    SoundFX.playLevelUp();
+    setNotification({
+      message: `🔨 Inilista sa P2P Auction ang "${auctioningItem.name}" (Simulang Bid: ${startBidInput} $PISO)!`,
+      type: 'success',
+    });
+  };
+
+  // 5. Place Bid on Live Auction
+  const handlePlaceBid = (auctionId: string, amount: number) => {
+    const success = PisoEconomyService.placeBid(auctionId, amount);
+    if (success) {
+      SoundFX.playCoins?.();
+      setLiveAuctions(PisoEconomyService.getAuctions());
+      setSpendablePiso(PisoEconomyService.getSpendablePiso());
+      setNotification({
+        message: `🔨 Matagumpay na naglagay ng bid na ${amount} $PISO!`,
+        type: 'success',
+      });
+    } else {
+      SoundFX.playLaser?.();
+      setNotification({
+        message: `Kulang ang $PISO o mas mababa sa kasalukuyang bid!`,
+        type: 'error',
+      });
+    }
+  };
+
+  // 6. Accept Auction Bid
+  const handleAcceptBid = (auctionId: string) => {
+    const res = PisoEconomyService.acceptAuctionBid(auctionId);
+    if (res.success) {
+      SoundFX.playLevelUp();
+      setLiveAuctions(PisoEconomyService.getAuctions());
+      setSpendablePiso(PisoEconomyService.getSpendablePiso());
+      setNotification({
+        message: `🎉 Panalo! Tinanggap ang bid para sa "${res.itemName}" (+${res.earnedPiso} $PISO)!`,
+        type: 'success',
+      });
+    }
+  };
+
+  // 7. Cancel Auction
+  const handleCancelAuction = (auctionId: string) => {
+    PisoEconomyService.cancelAuction(auctionId);
+    setLiveAuctions(PisoEconomyService.getAuctions());
+    SoundFX.playClick();
+    setNotification({
+      message: `Ibinaba ang listahan sa merkado.`,
+      type: 'info',
+    });
+  };
 
   const filteredPinoyItems = FILIPINO_ITEMS.filter((item) => {
     if (rarityFilter !== 'all' && item.rarity !== rarityFilter) return false;
@@ -818,7 +1043,13 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
                 <span className="text-xs text-slate-400 font-mono">Full-Body Rig & Walking Engine</span>
               </div>
               <h2 className="text-lg font-bold text-white tracking-wide">
-                {activeTab === 'human' ? 'AI Humanoid 3D Avatar (Upload & Walking Rig)' : 'Builder Drone Chassis Hangar'}
+                {activeTab === 'human'
+                  ? 'AI Humanoid 3D Avatar (Upload & Walking Rig)'
+                  : activeTab === 'pinoy'
+                  ? 'Mahiwagang Pinoy Culture Items & Superpowers'
+                  : activeTab === 'drone'
+                  ? 'Builder Drone Chassis Hangar'
+                  : '🎒 Imbentaryo, Fixed Price Sell & P2P Bidding Market'}
               </h2>
             </div>
           </div>
@@ -876,8 +1107,26 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
           </div>
         </div>
 
-        {/* Tab Switcher: Humanoid vs Pinoy vs Drone */}
-        <div className="relative z-20 flex border-b border-slate-800 bg-[#0B0F17] px-6">
+        {/* Tab Switcher: Humanoid vs Pinoy vs Drone vs Inventory */}
+        <div className="relative z-20 flex flex-wrap border-b border-slate-800 bg-[#0B0F17] px-6">
+          <button
+            onClick={() => {
+              SoundFX.playClick();
+              setActiveTab('inventory');
+            }}
+            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-mono font-bold transition-all border-b-2 ${
+              activeTab === 'inventory'
+                ? 'border-emerald-400 text-emerald-400 bg-emerald-400/10'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4 text-emerald-400" />
+            <span>🎒 Imbentaryo, Benta & Bidding</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-black border border-emerald-500/40">
+              ₱ P2P
+            </span>
+          </button>
+
           <button
             onClick={() => {
               SoundFX.playClick();
@@ -891,9 +1140,6 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
           >
             <Sparkles className="w-4 h-4 text-purple-400" />
             <span>🇵🇭 Pinoy Gear & Superpowers</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-mono font-black border border-rose-500/40 animate-pulse">
-              NEW
-            </span>
           </button>
 
           <button
@@ -925,6 +1171,19 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
             <Rocket className="w-4 h-4" />
             <span>🛸 Recon Drones</span>
           </button>
+
+          <div className="ml-auto flex items-center py-1">
+            <button
+              onClick={() => {
+                onClose();
+                window.dispatchEvent(new CustomEvent('piso-open-character-creation'));
+              }}
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-cyan-500 hover:from-amber-400 hover:to-cyan-400 text-slate-950 font-black font-mono text-[11px] flex items-center space-x-1.5 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>✨ Lumikha ng Karakter / Avatar NFT</span>
+            </button>
+          </div>
         </div>
 
         {/* Content Body: Human Avatar Customizer */}
@@ -1018,6 +1277,63 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
 
             {/* Right Customization & Upload Controls */}
             <div className="flex-1 p-5 space-y-4 overflow-y-auto font-sans text-xs text-slate-300">
+              {/* 0. PISO Avatar NFT On-Chain Identity Card */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-cyan-950/30 border border-amber-500/40 shadow-lg space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono font-black text-[10px] uppercase tracking-wider flex items-center space-x-1">
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      <span>PISO AVATAR NFT #{avatarNft?.tokenId || '1'}</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 font-mono text-[10px]">
+                      PISO Chain ERC-721
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 font-mono text-[10px]">
+                      Lv. {avatarNft?.level || 1}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      onClose();
+                      window.dispatchEvent(new CustomEvent('piso-open-character-creation'));
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-mono text-[10px] font-bold flex items-center space-x-1 transition-all cursor-pointer"
+                  >
+                    <span>🔄 Re-roll / Lumikha Muli</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px] font-mono">
+                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
+                    <span className="text-slate-500 text-[10px] block">WALLET STATUS:</span>
+                    <span className="text-slate-200 font-bold truncate block">
+                      {avatarNft?.isGuest
+                        ? '🟡 Guest (Ikonek Mamaya)'
+                        : `🟢 ${avatarNft?.ownerAddress ? avatarNft.ownerAddress.slice(0, 6) + '...' + avatarNft.ownerAddress.slice(-4) : 'Connected'}`}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
+                    <span className="text-slate-500 text-[10px] block">DEFAULT ATTIRE:</span>
+                    <span className="text-cyan-300 font-bold block">
+                      👕 Plain Civilian (No Costume)
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800">
+                    <span className="text-slate-500 text-[10px] block">SUITED ON-CHAIN GEAR:</span>
+                    <span className="text-amber-300 font-bold block">
+                      {localHuman?.equippedPinoyItems?.allEquipped
+                        ? '🛡️ Lahat ng Item Suot'
+                        : '📦 Na-earn / Na-mine Lamang'}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-[10px] text-slate-400 font-mono">
+                  💡 Ang iyong Avatar ay isang on-chain PISO NFT. Nagsisimula ito nang <strong className="text-white">walang costume</strong> (default civilian). Anumang armas, kalasag, o pakpak na makuha mo sa pakikipagsapalaran o merkado ay awtomatikong isusuot sa kanya online at idle!
+                </p>
+              </div>
+
               {/* 1. Upload Reference Image / Model Logic */}
               <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1941,6 +2257,791 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose })
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Content Body: Inventory, Fixed Price Sell & P2P Bidding Market */}
+        {activeTab === 'inventory' && (
+          <div className="relative z-20 flex-1 overflow-hidden flex flex-col p-6 space-y-4 font-sans text-xs">
+            {/* Top Toolbar: Sub-Tabs & Spendable Balance */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#161F30]/90 border border-slate-800">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => {
+                    SoundFX.playClick();
+                    setInventorySubTab('gear');
+                  }}
+                  className={`px-4 py-2 rounded-xl font-mono text-xs font-bold transition-all flex items-center space-x-2 ${
+                    inventorySubTab === 'gear'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Package className="w-4 h-4 text-emerald-400" />
+                  <span>🎒 Aking Imbentaryo & Suot</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">
+                    {ownedWeapons.length + ownedRelics.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    SoundFX.playClick();
+                    setInventorySubTab('bidding');
+                  }}
+                  className={`px-4 py-2 rounded-xl font-mono text-xs font-bold transition-all flex items-center space-x-2 ${
+                    inventorySubTab === 'bidding'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Gavel className="w-4 h-4 text-amber-400" />
+                  <span>🔨 Live P2P Bidding & Auctions</span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px]">
+                    {liveAuctions.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    SoundFX.playClick();
+                    setInventorySubTab('elements');
+                  }}
+                  className={`px-4 py-2 rounded-xl font-mono text-xs font-bold transition-all flex items-center space-x-2 ${
+                    inventorySubTab === 'elements'
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-cyan-400" />
+                  <span>🧪 Elemental Drops & $PISO Swap</span>
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px]">
+                    {Object.values(elementalMaterials).reduce((acc, m) => acc + m.count, 0)}
+                  </span>
+                </button>
+              </div>
+
+              {/* Spendable $PISO Wallet Balance */}
+              <div className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <Coins className="w-4 h-4 text-amber-400" />
+                <span className="text-slate-400 font-mono text-[11px]">Spendable $PISO:</span>
+                <span className="text-amber-300 font-mono font-black text-sm tracking-wide">
+                  ₱ {spendablePiso.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Sub-Tab 1: My Inventory (Suit Up / Sell / Auction) */}
+            {inventorySubTab === 'gear' && (
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                {/* Category Filters */}
+                <div className="flex items-center space-x-2 font-mono text-xs">
+                  {(['all', 'weapons', 'relics', 'blocks'] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => {
+                        SoundFX.playClick();
+                        setInventoryFilter(filter);
+                      }}
+                      className={`px-3 py-1 rounded-lg uppercase tracking-wider text-[11px] font-bold transition-all ${
+                        inventoryFilter === filter
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      {filter === 'all'
+                        ? 'Lahat'
+                        : filter === 'weapons'
+                        ? `Sandata (${ownedWeapons.length})`
+                        : filter === 'relics'
+                        ? `Relikya (${ownedRelics.length})`
+                        : 'Kultura & Bloke'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Grid of Items */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {/* 1. Weapons & Armor */}
+                  {(inventoryFilter === 'all' || inventoryFilter === 'weapons') &&
+                    ownedWeapons.map((weapon) => {
+                      const isEquipped =
+                        localHuman?.equippedPinoyItems?.weapon?.toLowerCase().includes(weapon.name.toLowerCase().split(' ')[0]) ||
+                        localHuman?.equippedPinoyItems?.weapon === String(weapon.id);
+                      const baseSellPrices: Record<string, number> = {
+                        Common: 50,
+                        Uncommon: 120,
+                        Rare: 280,
+                        Epic: 650,
+                        Legendary: 1500,
+                        Mythical: 3500,
+                      };
+                      const sellVal = Math.round(
+                        (baseSellPrices[weapon.rarity] || 150) * (1 + (weapon.enhancementLevel || 0) * 0.15)
+                      );
+
+                      return (
+                        <div
+                          key={`weapon-${weapon.id}`}
+                          className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                            isEquipped
+                              ? 'bg-emerald-950/20 border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                              : 'bg-[#161F30] border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center space-x-2.5">
+                                <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-2xl shadow-inner">
+                                  {weapon.icon || '🗡️'}
+                                </div>
+                                <div>
+                                  <div className="flex items-center space-x-1.5">
+                                    <span className="font-bold text-white font-mono text-xs tracking-tight">
+                                      {weapon.name}
+                                    </span>
+                                    {weapon.enhancementLevel > 0 && (
+                                      <span className="px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-400/30">
+                                        +{weapon.enhancementLevel}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] font-mono text-cyan-400 font-bold uppercase">
+                                    {weapon.rarity} {weapon.category}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-mono bg-slate-900/70 p-2 rounded-xl border border-slate-800/80">
+                              <div className="flex items-center justify-between text-slate-400">
+                                <span>Lakas (ATK):</span>
+                                <span className="text-amber-300 font-bold">+{weapon.attackPower}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-400">
+                                <span>Depensa (DEF):</span>
+                                <span className="text-blue-300 font-bold">+{weapon.defensePower}</span>
+                              </div>
+                            </div>
+
+                            {/* Active Suiting Indicator */}
+                            {isEquipped && (
+                              <div className="mt-2.5 flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>SUITED SA AVATAR (ONLINE & IDLE)</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="mt-3.5 pt-3 border-t border-slate-800 flex items-center space-x-2">
+                            <button
+                              onClick={() => handleSuitUp(weapon.name, weapon.category)}
+                              className={`flex-1 py-1.5 rounded-xl font-mono text-xs font-bold transition-all uppercase flex items-center justify-center space-x-1 ${
+                                isEquipped
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-md'
+                              }`}
+                            >
+                              <span>👔 {isEquipped ? 'Suot Na' : 'Isukat'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleSellItem('weapon', weapon.id)}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 font-mono text-xs font-bold transition-all"
+                              title={`Ibenta para sa +${sellVal} $PISO`}
+                            >
+                              💰 +{sellVal} ₱
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                handleOpenAuctionModal({
+                                  name: `${weapon.name} (+${weapon.enhancementLevel})`,
+                                  category: weapon.category,
+                                  icon: weapon.icon || '🗡️',
+                                  rarity: weapon.rarity,
+                                })
+                              }
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-amber-950/40 text-amber-400 border border-amber-500/30 font-mono text-xs font-bold transition-all"
+                              title="I-bidding sa P2P Auction"
+                            >
+                              🔨 Bid
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {/* 2. Relics */}
+                  {(inventoryFilter === 'all' || inventoryFilter === 'relics') &&
+                    ownedRelics.map((relic) => {
+                      const isEquipped =
+                        localHuman?.equippedPinoyItems?.shield?.toLowerCase().includes('kaldero') ||
+                        localHuman?.equippedPinoyItems?.amulet?.toLowerCase().includes('agimat') ||
+                        localHuman?.equippedPinoyItems?.tabo?.toLowerCase().includes('tabo') ||
+                        localHuman?.equippedPinoyItems?.headwear?.toLowerCase().includes('salakot');
+                      const baseRelicPrices: Record<string, number> = {
+                        Common: 40,
+                        Uncommon: 90,
+                        Rare: 200,
+                        Epic: 450,
+                        Legendary: 1100,
+                      };
+                      const sellVal = baseRelicPrices[relic.rarity] || 100;
+
+                      return (
+                        <div
+                          key={`relic-${relic.id}`}
+                          className="p-4 rounded-2xl border border-slate-800 bg-[#161F30] hover:border-slate-700 transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center space-x-2.5">
+                                <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-2xl shadow-inner">
+                                  {relic.icon}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-white font-mono text-xs block">
+                                    {relic.name}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-purple-400 font-bold uppercase">
+                                    {relic.rarity} Relic • Dami: {relic.count}x
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <p className="mt-2 text-[11px] text-slate-300 font-sans leading-relaxed">
+                              {relic.description}
+                            </p>
+
+                            <div className="mt-2 text-[10px] font-mono text-emerald-400 bg-emerald-500/10 p-1.5 rounded-lg border border-emerald-500/20">
+                              ⚡ +{(relic.buffAprBps / 100).toFixed(1)}% Farming APR Boost
+                            </div>
+                          </div>
+
+                          <div className="mt-3.5 pt-3 border-t border-slate-800 flex items-center space-x-2">
+                            <button
+                              onClick={() => handleSuitUp(relic.name, 'RELIC')}
+                              className="flex-1 py-1.5 rounded-xl font-mono text-xs font-bold uppercase bg-purple-600 hover:bg-purple-500 text-white shadow-md transition-all flex items-center justify-center space-x-1"
+                            >
+                              <span>👔 Isukat sa Avatar</span>
+                            </button>
+
+                            <button
+                              disabled={relic.count <= 0}
+                              onClick={() => handleSellItem('relic', relic.id, 1)}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 font-mono text-xs font-bold transition-all disabled:opacity-50"
+                              title={`Ibenta ang 1x para sa +${sellVal} $PISO`}
+                            >
+                              💰 +{sellVal} ₱
+                            </button>
+
+                            <button
+                              disabled={relic.count <= 0}
+                              onClick={() =>
+                                handleOpenAuctionModal({
+                                  name: relic.name,
+                                  category: 'RELIC',
+                                  icon: relic.icon,
+                                  rarity: relic.rarity,
+                                })
+                              }
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-amber-950/40 text-amber-400 border border-amber-500/30 font-mono text-xs font-bold transition-all disabled:opacity-50"
+                              title="I-bidding sa P2P Auction"
+                            >
+                              🔨 Bid
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {/* 3. Filipino Cultural Items Showcase */}
+                  {(inventoryFilter === 'all' || inventoryFilter === 'blocks') &&
+                    FILIPINO_ITEMS.slice(0, 6).map((item) => {
+                      const isEquipped =
+                        localHuman?.equippedPinoyItems?.weapon === item.id ||
+                        localHuman?.equippedPinoyItems?.headwear === item.id ||
+                        localHuman?.equippedPinoyItems?.back === item.id;
+                      return (
+                        <div
+                          key={`culture-${item.id}`}
+                          className="p-4 rounded-2xl border border-slate-800 bg-[#161F30] hover:border-slate-700 transition-all flex flex-col justify-between"
+                        >
+                          <div>
+                            <div className="flex items-center space-x-2.5">
+                              <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-2xl shadow-inner">
+                                {item.icon}
+                              </div>
+                              <div>
+                                <span className="font-bold text-white font-mono text-xs block">
+                                  {item.name}
+                                </span>
+                                <span className="text-[10px] font-mono text-amber-400 font-bold uppercase">
+                                  {item.rarity} {item.slot}
+                                </span>
+                              </div>
+                            </div>
+                            <p className="mt-2 text-[11px] text-slate-300 font-sans line-clamp-2">
+                              {item.lore}
+                            </p>
+                          </div>
+
+                          <div className="mt-3.5 pt-3 border-t border-slate-800 flex items-center space-x-2">
+                            <button
+                              onClick={() => handleSuitUp(item.name, item.slot.toUpperCase())}
+                              className="flex-1 py-1.5 rounded-xl font-mono text-xs font-bold uppercase bg-amber-600 hover:bg-amber-500 text-white shadow-md transition-all"
+                            >
+                              👔 Isukat
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                handleOpenAuctionModal({
+                                  name: item.name,
+                                  category: 'CULTURE',
+                                  icon: item.icon,
+                                  rarity: (item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1)) as any,
+                                })
+                              }
+                              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-amber-950/40 text-amber-400 border border-amber-500/30 font-mono text-xs font-bold transition-all"
+                            >
+                              🔨 I-bidding
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {/* Sub-Tab 2: Live P2P Bidding & Auctions */}
+            {inventorySubTab === 'bidding' && (
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                  <div className="flex items-center space-x-2 text-amber-300 font-mono text-xs">
+                    <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
+                    <span className="font-bold">DECENTRALIZED P2P AUCTION BOARD</span>
+                    <span className="text-slate-400 text-[11px]">• 1% Burn Tax sa bawat matagumpay na bidding</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-amber-400">
+                    Active Bids: {liveAuctions.length} Listings
+                  </span>
+                </div>
+
+                {/* Auction Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {liveAuctions.map((auc) => {
+                    const isUser = auc.isUserListing || auc.seller.includes('Ikaw');
+                    const timeLeftMinutes = Math.max(0, Math.round((auc.expiresAt - Date.now()) / (1000 * 60)));
+
+                    return (
+                      <div
+                        key={auc.id}
+                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                          isUser
+                            ? 'bg-amber-950/20 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                            : 'bg-[#161F30] border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-2.5">
+                              <div className="w-11 h-11 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-2xl shadow-inner">
+                                {auc.itemIcon}
+                              </div>
+                              <div>
+                                <span className="font-bold text-white font-mono text-xs block">
+                                  {auc.itemName}
+                                </span>
+                                <div className="flex items-center space-x-1.5 mt-0.5">
+                                  <span className="text-[10px] font-mono text-cyan-400 font-bold uppercase">
+                                    {auc.rarity} {auc.itemCategory}
+                                  </span>
+                                  <span className="text-slate-500">•</span>
+                                  <span className="text-[10px] font-mono text-slate-400">
+                                    Seller: {auc.seller}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <span className="flex items-center space-x-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-amber-300">
+                              <Clock className="w-3 h-3 text-amber-400" />
+                              <span>{timeLeftMinutes > 0 ? `${timeLeftMinutes}m left` : 'Finished'}</span>
+                            </span>
+                          </div>
+
+                          {/* Bidding Stats Bar */}
+                          <div className="mt-3.5 grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-mono">
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase">Kasalukuyang Bid:</span>
+                              <span className="text-amber-400 font-black text-sm">
+                                ₱ {auc.currentBidPiso.toLocaleString()}
+                              </span>
+                              <span className="text-[9px] text-slate-400 block truncate">
+                                By {auc.highestBidder} ({auc.bidsCount} bids)
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-slate-400 block uppercase">Instant Buyout:</span>
+                              <span className="text-emerald-400 font-black text-sm">
+                                ₱ {auc.buyoutPricePiso.toLocaleString()}
+                              </span>
+                              <span className="text-[9px] text-emerald-400/80 block">
+                                1-Click Diretsong Panalo
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="mt-3.5 pt-3 border-t border-slate-800 flex flex-wrap items-center gap-2">
+                          {isUser ? (
+                            <>
+                              <button
+                                onClick={() => handleAcceptBid(auc.id)}
+                                className="flex-1 py-1.5 rounded-xl font-mono text-xs font-bold uppercase bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all flex items-center justify-center space-x-1.5"
+                              >
+                                <span>🎉 Tanggapin ang Highest Bid (₱ {auc.currentBidPiso})</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleCancelAuction(auc.id)}
+                                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-red-500/20 text-red-400 border border-red-500/30 font-mono text-xs font-bold transition-all"
+                              >
+                                Kanselahin
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handlePlaceBid(auc.id, auc.currentBidPiso + 25)}
+                                className="px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/40 font-mono text-xs font-bold transition-all"
+                              >
+                                +25 ₱ Bid
+                              </button>
+
+                              <button
+                                onClick={() => handlePlaceBid(auc.id, auc.currentBidPiso + 50)}
+                                className="px-2.5 py-1.5 rounded-xl bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/40 font-mono text-xs font-bold transition-all"
+                              >
+                                +50 ₱ Bid
+                              </button>
+
+                              <button
+                                onClick={() => handlePlaceBid(auc.id, auc.buyoutPricePiso)}
+                                className="flex-1 py-1.5 rounded-xl font-mono text-xs font-bold uppercase bg-emerald-600 hover:bg-emerald-500 text-white shadow-md transition-all"
+                              >
+                                ⚡ Buyout (₱ {auc.buyoutPricePiso})
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Sub-Tab 3: Elemental Monster Drops & $PISO Token Swap */}
+            {inventorySubTab === 'elements' && (
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                {/* Header Liquidation Banner */}
+                {(() => {
+                  const itemsList = Object.values(elementalMaterials).filter((m) => m.count > 0);
+                  const totalRawPiso = itemsList.reduce((acc, m) => acc + m.swapPisoValue * m.count, 0);
+                  const bonusPiso = Math.floor(totalRawPiso * 0.1);
+                  const grandTotalPiso = totalRawPiso + bonusPiso;
+                  const totalItemCount = itemsList.reduce((acc, m) => acc + m.count, 0);
+
+                  return (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-cyan-950/40 via-slate-900 to-blue-950/40 border border-cyan-500/40 shadow-[0_0_25px_rgba(6,182,212,0.15)] flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center space-x-2 text-cyan-300 font-mono text-sm font-black">
+                          <Sparkles className="w-5 h-5 text-cyan-400 animate-pulse" />
+                          <span>ELEMENTAL DROPS EXCHANGE (PALITAN NG MATERYAL)</span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-300 font-sans max-w-xl">
+                          Lahat ng halimaw ay naghuhulog ng mga random na <strong>Pagkain (Food)</strong>, <strong>Habi (Textile)</strong>, <strong>Likido (Liquid)</strong>, at <strong>Kristal (Shards)</strong>. Direktang ipalit sa <strong>$PISO Token</strong> para sa agarang kita o gamitin sa hinaharap na pagpapanday!
+                        </p>
+                        <div className="mt-2 flex items-center space-x-3 text-xs font-mono">
+                          <span className="text-slate-400">Kabuuang Materyal: <strong className="text-cyan-300">{totalItemCount} piraso</strong></span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-slate-400">Kabuuang Halaga: <strong className="text-amber-400">₱ {grandTotalPiso.toLocaleString()}</strong> (+10% Bulk Bonus)</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleSwapAllMaterials}
+                        disabled={totalItemCount === 0}
+                        className="px-5 py-3 rounded-xl font-mono text-xs font-black uppercase bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all flex items-center space-x-2 active:scale-95"
+                      >
+                        <Coins className="w-4 h-4 text-slate-950" />
+                        <span>⚡ Palitan Lahat sa $PISO (+₱{grandTotalPiso.toLocaleString()})</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {/* Category Filters for Elements */}
+                <div className="flex items-center space-x-2 font-mono text-xs overflow-x-auto pb-1">
+                  {(
+                    [
+                      { id: 'all', label: 'Lahat ng Elemento', icon: '✨' },
+                      { id: 'food', label: '🍗 Pagkain (Food)', icon: '🍗' },
+                      { id: 'textile', label: '🧵 Habi (Textile)', icon: '🧵' },
+                      { id: 'liquid', label: '💧 Likido (Liquid)', icon: '💧' },
+                      { id: 'shard', label: '💎 Kristal (Shards)', icon: '💎' },
+                    ] as const
+                  ).map((f) => {
+                    const countInCat = Object.values(elementalMaterials).filter(
+                      (m) => (f.id === 'all' || m.category === f.id) && m.count > 0
+                    ).length;
+
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          SoundFX.playClick();
+                          setElementFilter(f.id as any);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl uppercase tracking-wider text-[11px] font-bold transition-all flex items-center space-x-1.5 whitespace-nowrap ${
+                          elementFilter === f.id
+                            ? 'bg-cyan-500 text-slate-950 shadow-md font-black'
+                            : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                        }`}
+                      >
+                        <span>{f.label}</span>
+                        <span className="px-1.5 py-0.2 rounded bg-black/30 text-[10px]">
+                          {countInCat}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Grid of Elemental Materials */}
+                {(() => {
+                  const filtered = Object.values(elementalMaterials).filter(
+                    (m) => (elementFilter === 'all' || m.category === elementFilter) && m.count > 0
+                  );
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-10 text-center rounded-2xl border border-slate-800 bg-[#161F30]/60 space-y-3">
+                        <span className="text-4xl block">🏺</span>
+                        <h4 className="font-mono text-sm font-bold text-slate-300">Walang Nakitang Elemental Drops</h4>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                          Lumalaban sa mga halimaw (Highland Cobra, Sky Vulture, Canyon Komodo, Cyber Hyena, at Giga Buwaya Titan) upang makakuha ng random drops ng pagkain, habi, likido, at kristal!
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                      {filtered.map((item) => {
+                        const rarityColors: Record<string, string> = {
+                          common: 'text-slate-400 border-slate-700 bg-slate-800/40',
+                          uncommon: 'text-emerald-400 border-emerald-500/40 bg-emerald-950/30',
+                          rare: 'text-blue-400 border-blue-500/40 bg-blue-950/30',
+                          epic: 'text-purple-400 border-purple-500/40 bg-purple-950/30',
+                          legendary: 'text-amber-400 border-amber-500/50 bg-amber-950/40',
+                        };
+
+                        const affinityIcons: Record<string, string> = {
+                          fire: '🔥 Apoy',
+                          water: '💧 Tubig',
+                          earth: '🌿 Lupa',
+                          lightning: '⚡ Kidlat',
+                          spirit: '✨ Diwa',
+                        };
+
+                        return (
+                          <div
+                            key={item.id}
+                            className="p-4 rounded-2xl border border-slate-800 bg-[#161F30] hover:border-cyan-500/40 transition-all flex flex-col justify-between group shadow-sm"
+                          >
+                            <div>
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center space-x-2.5">
+                                  <div className="w-11 h-11 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform">
+                                    {item.icon}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center space-x-1.5">
+                                      <span className="font-bold text-white font-mono text-xs block">
+                                        {item.name}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] font-sans text-cyan-400/80 block">
+                                      {item.tagalogName}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono text-xs font-black border border-cyan-500/30">
+                                  x{item.count}
+                                </span>
+                              </div>
+
+                              <div className="mt-2.5 flex items-center space-x-2">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
+                                    rarityColors[item.rarity] || rarityColors.common
+                                  }`}
+                                >
+                                  {item.rarity} {item.category}
+                                </span>
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  {affinityIcons[item.elementalAffinity]}
+                                </span>
+                              </div>
+
+                              <p className="mt-2 text-[11px] text-slate-300 font-sans line-clamp-2">
+                                {item.description}
+                              </p>
+                            </div>
+
+                            <div className="mt-3.5 pt-3 border-t border-slate-800 flex items-center justify-between">
+                              <div>
+                                <span className="text-[10px] text-slate-400 font-mono block">Halaga sa Swap:</span>
+                                <span className="text-amber-400 font-mono font-black text-xs">
+                                  +{item.swapPisoValue} ₱PISO bawat isa
+                                </span>
+                              </div>
+
+                              <div className="flex items-center space-x-1.5">
+                                <button
+                                  onClick={() => handleSwapSingleMaterial(item.id, 1)}
+                                  className="px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-slate-950 border border-cyan-500/40 font-mono text-xs font-bold transition-all shadow-sm active:scale-95"
+                                  title="Ipalit ang 1 piraso sa $PISO"
+                                >
+                                  Ipalit (1x)
+                                </button>
+                                {item.count > 1 && (
+                                  <button
+                                    onClick={() => handleSwapSingleMaterial(item.id, item.count)}
+                                    className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-emerald-500/20 hover:from-amber-500 hover:to-emerald-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 font-mono text-xs font-bold transition-all shadow-sm active:scale-95"
+                                    title={`Ipalit ang lahat ng ${item.count} piraso sa $PISO`}
+                                  >
+                                    Lahat (+{item.swapPisoValue * item.count} ₱)
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Auction Creation Modal Overlay */}
+            {auctioningItem && (
+              <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+                <div className="relative w-full max-w-md bg-[#0F172A] border-2 border-amber-500/80 rounded-2xl p-5 shadow-[0_0_40px_rgba(245,158,11,0.3)] space-y-4 font-mono">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center space-x-2">
+                      <Gavel className="w-5 h-5 text-amber-400" />
+                      <h3 className="font-bold text-white text-sm">I-bidding sa P2P Auction Board</h3>
+                    </div>
+                    <button
+                      onClick={() => setAuctioningItem(null)}
+                      className="p-1 rounded-lg text-slate-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Selected Item Preview */}
+                  <div className="flex items-center space-x-3 p-3 rounded-xl bg-slate-900 border border-slate-800">
+                    <span className="text-3xl">{auctioningItem.icon}</span>
+                    <div>
+                      <span className="font-bold text-white block text-xs">{auctioningItem.name}</span>
+                      <span className="text-[10px] text-amber-400 uppercase font-bold">
+                        {auctioningItem.rarity} {auctioningItem.category}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Form Inputs */}
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="text-slate-300 block mb-1">Simulang Bid (Starting Price in $PISO):</label>
+                      <input
+                        type="number"
+                        min="10"
+                        value={startBidInput}
+                        onChange={(e) => setStartBidInput(Math.max(10, parseInt(e.target.value) || 10))}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-amber-300 font-bold focus:border-amber-400 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-300 block mb-1">Instant Buyout Price in $PISO:</label>
+                      <input
+                        type="number"
+                        min={startBidInput}
+                        value={buyoutInput}
+                        onChange={(e) => setBuyoutInput(Math.max(startBidInput, parseInt(e.target.value) || startBidInput))}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-emerald-300 font-bold focus:border-emerald-400 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-300 block mb-1">Tagal ng Auction (Duration):</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[15, 60, 240, 1440].map((mins) => (
+                          <button
+                            key={mins}
+                            type="button"
+                            onClick={() => setDurationInput(mins)}
+                            className={`py-1.5 rounded-lg text-center font-bold text-[11px] transition-all ${
+                              durationInput === mins
+                                ? 'bg-amber-400 text-slate-950 font-black'
+                                : 'bg-slate-900 text-slate-400 border border-slate-800 hover:text-white'
+                            }`}
+                          >
+                            {mins < 60 ? `${mins}m` : mins === 60 ? '1h' : mins === 240 ? '4h' : '24h'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 font-sans leading-tight">
+                      ℹ️ Kapag nabili, may 1% deflationary burn tax alinsunod sa smart contract ng{' '}
+                      <span className="text-amber-400 font-mono">PISOMarketplace.sol</span>.
+                    </p>
+                  </div>
+
+                  {/* Submit Buttons */}
+                  <div className="pt-2 flex items-center space-x-2">
+                    <button
+                      onClick={handleConfirmCreateAuction}
+                      className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg transition-all"
+                    >
+                      🔨 I-lista sa P2P Auction
+                    </button>
+                    <button
+                      onClick={() => setAuctioningItem(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-bold"
+                    >
+                      Kanselahin
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

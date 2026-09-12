@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { PisoEconomyService } from './pisoEconomyService';
+import { SoundFX } from './soundFX';
 
 // ═══════════════════════════════════════════════════════════════════
 //  PISO MINING BLOCK ENGINE
@@ -35,17 +37,18 @@ export interface BlockDef {
   dropMax:      number;
   rarity:       number;      // Spawn weight (higher = more common)
   respawnSecs:  number;
+  pricePiso:    number;      // Price in $PISO token per unit
 }
 
 export const BLOCK_DEFS: Record<BlockType, BlockDef> = {
-  kahoy:    { type:'kahoy',    displayName:'Kahoy',          emoji:'🪵', color:0x7c4a1a, emissive:0x000000, emissiveInt:0,    size:0.9, minLevel:1,  expReward:10,  dropItem:'Lumber',        dropEmoji:'🪵', dropMin:1, dropMax:3, rarity:30, respawnSecs:180 },
-  lupa:     { type:'lupa',     displayName:'Lupa',           emoji:'🟫', color:0x6b4226, emissive:0x000000, emissiveInt:0,    size:0.9, minLevel:1,  expReward:8,   dropItem:'Earth',         dropEmoji:'🟫', dropMin:2, dropMax:4, rarity:28, respawnSecs:120 },
-  bato:     { type:'bato',     displayName:'Bato',           emoji:'🪨', color:0x808080, emissive:0x000000, emissiveInt:0,    size:1.0, minLevel:6,  expReward:15,  dropItem:'Cobblestone',   dropEmoji:'🪨', dropMin:1, dropMax:2, rarity:22, respawnSecs:200 },
-  bakal:    { type:'bakal',    displayName:'Bakal (Iron)',   emoji:'⚙️', color:0xb0b0b0, emissive:0x444444, emissiveInt:0.1,  size:1.0, minLevel:6,  expReward:30,  dropItem:'Iron Ingot',    dropEmoji:'⚙️', dropMin:1, dropMax:1, rarity:12, respawnSecs:300 },
-  ginto:    { type:'ginto',    displayName:'Ginto (Gold)',   emoji:'🥇', color:0xffd700, emissive:0xffaa00, emissiveInt:0.3,  size:1.0, minLevel:16, expReward:60,  dropItem:'Gold Ingot',    dropEmoji:'🥇', dropMin:1, dropMax:1, rarity:6,  respawnSecs:480 },
-  kristal:  { type:'kristal',  displayName:'Kristal',        emoji:'💎', color:0x00e5ff, emissive:0x00aaff, emissiveInt:0.5,  size:0.8, minLevel:16, expReward:120, dropItem:'Crystal Shard', dropEmoji:'💎', dropMin:1, dropMax:1, rarity:4,  respawnSecs:600 },
-  bakunawa: { type:'bakunawa', displayName:'Bakunawa Scale', emoji:'🐉', color:0x1a0033, emissive:0x6600ff, emissiveInt:0.8,  size:1.2, minLevel:31, expReward:300, dropItem:'Dragon Scale',  dropEmoji:'🐉', dropMin:1, dropMax:1, rarity:2,  respawnSecs:900 },
-  bituin:   { type:'bituin',   displayName:'Bituin Shard',   emoji:'⭐', color:0xffffff, emissive:0xffffaa, emissiveInt:1.0,  size:0.7, minLevel:31, expReward:500, dropItem:'Star Fragment', dropEmoji:'⭐', dropMin:1, dropMax:1, rarity:1,  respawnSecs:1800 },
+  kahoy:    { type:'kahoy',    displayName:'Kahoy',          emoji:'🪵', color:0x7c4a1a, emissive:0x000000, emissiveInt:0,    size:0.9, minLevel:1,  expReward:10,  dropItem:'Lumber',        dropEmoji:'🪵', dropMin:1, dropMax:3, rarity:30, respawnSecs:180, pricePiso:2 },
+  lupa:     { type:'lupa',     displayName:'Lupa',           emoji:'🟫', color:0x6b4226, emissive:0x000000, emissiveInt:0,    size:0.9, minLevel:1,  expReward:8,   dropItem:'Earth',         dropEmoji:'🟫', dropMin:2, dropMax:4, rarity:28, respawnSecs:120, pricePiso:1 },
+  bato:     { type:'bato',     displayName:'Bato',           emoji:'🪨', color:0x808080, emissive:0x000000, emissiveInt:0,    size:1.0, minLevel:6,  expReward:15,  dropItem:'Cobblestone',   dropEmoji:'🪨', dropMin:1, dropMax:2, rarity:22, respawnSecs:200, pricePiso:5 },
+  bakal:    { type:'bakal',    displayName:'Bakal (Iron)',   emoji:'⚙️', color:0xb0b0b0, emissive:0x444444, emissiveInt:0.1,  size:1.0, minLevel:6,  expReward:30,  dropItem:'Iron Ingot',    dropEmoji:'⚙️', dropMin:1, dropMax:1, rarity:12, respawnSecs:300, pricePiso:15 },
+  ginto:    { type:'ginto',    displayName:'Ginto (Gold)',   emoji:'🥇', color:0xffd700, emissive:0xffaa00, emissiveInt:0.3,  size:1.0, minLevel:16, expReward:60,  dropItem:'Gold Ingot',    dropEmoji:'🥇', dropMin:1, dropMax:1, rarity:6,  respawnSecs:480, pricePiso:40 },
+  kristal:  { type:'kristal',  displayName:'Kristal',        emoji:'💎', color:0x00e5ff, emissive:0x00aaff, emissiveInt:0.5,  size:0.8, minLevel:16, expReward:120, dropItem:'Crystal Shard', dropEmoji:'💎', dropMin:1, dropMax:1, rarity:4,  respawnSecs:600, pricePiso:80 },
+  bakunawa: { type:'bakunawa', displayName:'Bakunawa Scale', emoji:'🐉', color:0x1a0033, emissive:0x6600ff, emissiveInt:0.8,  size:1.2, minLevel:31, expReward:300, dropItem:'Dragon Scale',  dropEmoji:'🐉', dropMin:1, dropMax:1, rarity:2,  respawnSecs:900, pricePiso:200 },
+  bituin:   { type:'bituin',   displayName:'Bituin Shard',   emoji:'⭐', color:0xffffff, emissive:0xffffaa, emissiveInt:1.0,  size:0.7, minLevel:31, expReward:500, dropItem:'Star Fragment', dropEmoji:'⭐', dropMin:1, dropMax:1, rarity:1,  respawnSecs:1800, pricePiso:450 },
 };
 
 // ─── Structure Recipes ─────────────────────────────────────────────────────
@@ -113,6 +116,250 @@ export function deductResources(recipe: Partial<Record<string, number>>): boolea
   }
   saveInventory(inv);
   return true;
+}
+
+// ─── Block Bundles & Store ($PISO Token) ───────────────────────────────────
+
+export interface BlockBundle {
+  id: number;
+  name: string;
+  emoji: string;
+  tagline: string;
+  discountPercent: number;
+  pricePiso: number;
+  originalPricePiso: number;
+  minLevel: number;
+  items: { item: string; emoji: string; qty: number }[];
+}
+
+export const BLOCK_BUNDLES: BlockBundle[] = [
+  {
+    id: 0,
+    name: 'Starter Bahay Bundle',
+    emoji: '📦',
+    tagline: 'Lumber & Earth essentials for rapid rookie homesteading',
+    discountPercent: 20,
+    pricePiso: 100,
+    originalPricePiso: 125,
+    minLevel: 1,
+    items: [
+      { item: 'Lumber', emoji: '🪵', qty: 25 },
+      { item: 'Earth', emoji: '🟫', qty: 25 },
+      { item: 'Cobblestone', emoji: '🪨', qty: 10 },
+    ],
+  },
+  {
+    id: 1,
+    name: 'Fortress Mason Pack',
+    emoji: '🏯',
+    tagline: 'Heavy stone, forged iron, and gold ingots for military bastions',
+    discountPercent: 15,
+    pricePiso: 800,
+    originalPricePiso: 950,
+    minLevel: 6,
+    items: [
+      { item: 'Cobblestone', emoji: '🪨', qty: 50 },
+      { item: 'Iron Ingot', emoji: '⚙️', qty: 20 },
+      { item: 'Gold Ingot', emoji: '🥇', qty: 10 },
+    ],
+  },
+  {
+    id: 2,
+    name: 'Mythic Architect Pack',
+    emoji: '🐉',
+    tagline: 'Rare Bakunawa dragon scales, crystals, and star fragments',
+    discountPercent: 18,
+    pricePiso: 4500,
+    originalPricePiso: 5450,
+    minLevel: 31,
+    items: [
+      { item: 'Dragon Scale', emoji: '🐉', qty: 10 },
+      { item: 'Crystal Shard', emoji: '💎', qty: 15 },
+      { item: 'Star Fragment', emoji: '⭐', qty: 5 },
+    ],
+  },
+];
+
+/**
+ * Purchases individual blocks using $PISO tokens from player balance.
+ */
+export function buyBlocksWithPiso(
+  type: BlockType,
+  count: number,
+  playerLevel: number
+): { success: boolean; message: string; newInventory?: ResourceInventory } {
+  const def = BLOCK_DEFS[type];
+  if (!def) return { success: false, message: 'Invalid block type.' };
+  if (count <= 0) return { success: false, message: 'Quantity must be greater than 0.' };
+
+  if (playerLevel < def.minLevel) {
+    return {
+      success: false,
+      message: `⛔ Level ${def.minLevel}+ required to purchase ${def.displayName}!`,
+    };
+  }
+
+  const totalCost = def.pricePiso * count;
+  if (!PisoEconomyService.hasEnoughPiso(totalCost)) {
+    const current = PisoEconomyService.getSpendablePiso();
+    return {
+      success: false,
+      message: `⚠️ Insufficient $PISO tokens! Required: ${totalCost} ₱PISO, you have: ${current.toFixed(1)} ₱PISO.`,
+    };
+  }
+
+  const deducted = PisoEconomyService.deductPiso(
+    totalCost,
+    `Purchased ${count}x ${def.displayName} blocks`
+  );
+  if (!deducted) {
+    return { success: false, message: 'Transaction could not be completed.' };
+  }
+
+  const updatedInv = addResource(def.dropItem, count);
+  try {
+    SoundFX.playCoins?.();
+  } catch {}
+
+  window.dispatchEvent(
+    new CustomEvent('piso-blocks-purchased', {
+      detail: {
+        blockType: type,
+        displayName: def.displayName,
+        item: def.dropItem,
+        count,
+        totalCost,
+        newInventory: updatedInv,
+      },
+    })
+  );
+
+  return {
+    success: true,
+    message: `🎉 Successfully purchased ${count}x ${def.emoji} ${def.displayName} for ${totalCost} ₱PISO!`,
+    newInventory: updatedInv,
+  };
+}
+
+/**
+ * Purchases a discounted pre-packaged builder bundle using $PISO tokens.
+ */
+export function buyBundleWithPiso(
+  bundleId: number,
+  playerLevel: number
+): { success: boolean; message: string; newInventory?: ResourceInventory } {
+  const bundle = BLOCK_BUNDLES.find((b) => b.id === bundleId);
+  if (!bundle) return { success: false, message: 'Invalid bundle ID.' };
+
+  if (playerLevel < bundle.minLevel) {
+    return {
+      success: false,
+      message: `⛔ Level ${bundle.minLevel}+ required to unlock the ${bundle.name}!`,
+    };
+  }
+
+  if (!PisoEconomyService.hasEnoughPiso(bundle.pricePiso)) {
+    const current = PisoEconomyService.getSpendablePiso();
+    return {
+      success: false,
+      message: `⚠️ Insufficient $PISO tokens! Required: ${bundle.pricePiso} ₱PISO, you have: ${current.toFixed(1)} ₱PISO.`,
+    };
+  }
+
+  const deducted = PisoEconomyService.deductPiso(
+    bundle.pricePiso,
+    `Purchased ${bundle.name}`
+  );
+  if (!deducted) {
+    return { success: false, message: 'Transaction could not be completed.' };
+  }
+
+  let lastInv: ResourceInventory = loadInventory();
+  for (const item of bundle.items) {
+    lastInv = addResource(item.item, item.qty);
+  }
+
+  try {
+    SoundFX.playLevelUp?.();
+  } catch {}
+
+  window.dispatchEvent(
+    new CustomEvent('piso-bundle-purchased', {
+      detail: {
+        bundleId,
+        bundleName: bundle.name,
+        pricePiso: bundle.pricePiso,
+        items: bundle.items,
+        newInventory: lastInv,
+      },
+    })
+  );
+
+  return {
+    success: true,
+    message: `🎉 Acquired ${bundle.emoji} ${bundle.name} for ${bundle.pricePiso} ₱PISO! All materials added to inventory.`,
+    newInventory: lastInv,
+  };
+}
+
+/**
+ * Automatically purchases exactly what materials are missing for a building recipe.
+ */
+export function buyMissingRecipeMaterialsWithPiso(
+  recipe: Partial<Record<string, number>>
+): { success: boolean; totalCost: number; message: string; itemsPurchased?: { item: string; qty: number }[] } {
+  const inv = loadInventory();
+  let totalCost = 0;
+  const missingItems: { item: string; blockType: BlockType; def: BlockDef; needed: number }[] = [];
+
+  for (const [item, requiredQty] of Object.entries(recipe)) {
+    const currentQty = inv[item] || 0;
+    const diff = (requiredQty || 0) - currentQty;
+    if (diff > 0) {
+      const def = Object.values(BLOCK_DEFS).find((d) => d.dropItem === item);
+      if (!def) continue;
+      missingItems.push({ item, blockType: def.type, def, needed: diff });
+      totalCost += def.pricePiso * diff;
+    }
+  }
+
+  if (missingItems.length === 0) {
+    return { success: true, totalCost: 0, message: 'You already have all required materials!' };
+  }
+
+  if (!PisoEconomyService.hasEnoughPiso(totalCost)) {
+    const current = PisoEconomyService.getSpendablePiso();
+    return {
+      success: false,
+      totalCost,
+      message: `⚠️ Need ${totalCost} ₱PISO to auto-buy missing materials, but you only have ${current.toFixed(1)} ₱PISO.`,
+    };
+  }
+
+  const deducted = PisoEconomyService.deductPiso(
+    totalCost,
+    `Auto-bought missing materials for building`
+  );
+  if (!deducted) {
+    return { success: false, totalCost, message: 'Transaction could not be completed.' };
+  }
+
+  for (const missing of missingItems) {
+    addResource(missing.item, missing.needed);
+  }
+
+  try {
+    SoundFX.playCoins?.();
+  } catch {}
+
+  const purchasedSummary = missingItems.map((m) => `${m.needed}x ${m.item}`).join(', ');
+
+  return {
+    success: true,
+    totalCost,
+    itemsPurchased: missingItems.map((m) => ({ item: m.item, qty: m.needed })),
+    message: `🎉 Successfully bought missing materials (${purchasedSummary}) for ${totalCost} ₱PISO!`,
+  };
 }
 
 // ─── Placed Block Persistence ──────────────────────────────────────────────
@@ -230,7 +477,42 @@ export class MiningBlockEngine {
     return block;
   }
 
-  // ── Mine a block ──────────────────────────────────────────────────────────
+  /**
+   * Finds the nearest unmined block within maxDistance, prioritizing blocks the player can mine.
+   */
+  getNearestAvailableBlock(
+    playerPos: THREE.Vector3,
+    maxDistance: number = 250,
+    playerLevel: number = 99
+  ): WorldBlock | null {
+    let nearest: WorldBlock | null = null;
+    let nearestDist = maxDistance;
+
+    // 1. Try to find nearest block meeting player level requirement
+    for (const b of this.blocks) {
+      if (b.minedAt !== 0) continue;
+      if (playerLevel < b.def.minLevel) continue;
+      const dist = playerPos.distanceTo(b.mesh.position);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearest = b;
+      }
+    }
+
+    // 2. Fallback to any nearest unmined block if none matched
+    if (!nearest) {
+      for (const b of this.blocks) {
+        if (b.minedAt !== 0) continue;
+        const dist = playerPos.distanceTo(b.mesh.position);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = b;
+        }
+      }
+    }
+
+    return nearest;
+  }
 
   /**
    * Attempts to mine the nearest visible block within `reach` units.

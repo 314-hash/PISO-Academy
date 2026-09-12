@@ -29,8 +29,31 @@ export interface PlayerStats {
 const STORAGE_KEY = 'piso_player_stats_v1';
 
 export class PlayerStatsEngine {
-  private static calculateExpRequired(lvl: number): number {
-    return Math.floor(100 * Math.pow(lvl, 1.42));
+  /**
+   * Deterministic EXP requirement for next level.
+   * 100% aligned with smart contracts (PISOMineCraft & PISOMonsterBountyManager):
+   * 100 + (lvl - 1) * 150 + ((lvl - 1) ** 2) * 20
+   */
+  public static calculateExpRequired(lvl: number): number {
+    if (lvl <= 1) return 100;
+    const n = Math.max(0, lvl - 1);
+    return 100 + n * 150 + n * n * 20;
+  }
+
+  /**
+   * Syncs level state from on-chain smart contracts.
+   */
+  static syncOnChainLevel(onChainLevel: number, onChainExp?: number) {
+    if (!onChainLevel || onChainLevel < 1) return;
+    const stats = this.getStats();
+    if (onChainLevel > stats.level || (onChainLevel === stats.level && (onChainExp ?? 0) > stats.currentExp)) {
+      stats.level = onChainLevel;
+      if (typeof onChainExp === 'number') {
+        stats.currentExp = onChainExp;
+      }
+      stats.expToNextLevel = this.calculateExpRequired(stats.level);
+      this.saveStats(stats);
+    }
   }
 
   /**
@@ -106,6 +129,16 @@ export class PlayerStatsEngine {
     const stats = this.getStats();
     stats.currentExp += amount;
 
+    // Sync cumulative global student XP
+    let totalXp = 0;
+    if (typeof window !== 'undefined') {
+      try {
+        const currentTotal = Number(localStorage.getItem('piso_student_xp')) || 0;
+        totalXp = currentTotal + amount;
+        localStorage.setItem('piso_student_xp', String(totalXp));
+      } catch {}
+    }
+
     let levelsGained = 0;
     while (stats.currentExp >= stats.expToNextLevel) {
       stats.currentExp -= stats.expToNextLevel;
@@ -124,20 +157,36 @@ export class PlayerStatsEngine {
         SoundFX.playLevelUp?.();
       } catch {}
 
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('piso-level-up', {
+            detail: {
+              newLevel: stats.level,
+              levelsGained,
+              unallocatedPoints: stats.unallocatedPoints,
+            },
+          })
+        );
+      }
+    } else {
+      this.saveStats(stats);
+    }
+
+    if (typeof window !== 'undefined') {
       window.dispatchEvent(
-        new CustomEvent('piso-level-up', {
+        new CustomEvent('piso-exp-gained', {
           detail: {
-            newLevel: stats.level,
-            levelsGained,
-            unallocatedPoints: stats.unallocatedPoints,
+            amount,
+            currentExp: stats.currentExp,
+            expToNextLevel: stats.expToNextLevel,
+            level: stats.level,
+            totalXp,
           },
         })
       );
-      return { leveledUp: true, newLevel: stats.level, levelsGained };
     }
 
-    this.saveStats(stats);
-    return { leveledUp: false, newLevel: stats.level, levelsGained: 0 };
+    return { leveledUp: levelsGained > 0, newLevel: stats.level, levelsGained };
   }
 
   /**

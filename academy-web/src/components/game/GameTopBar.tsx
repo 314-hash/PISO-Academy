@@ -37,7 +37,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
   onOpenOptions,
   onOpenWalletTerminal,
 }) => {
-  const { wallet, xp, level, levelTitle, connectInjectedWallet, avatarMode, humanAvatar } = useAcademy();
+  const { wallet, xp, level, levelTitle, connectInjectedWallet, openConnectWalletModal, avatarMode, humanAvatar } = useAcademy();
 
   const [currentBlock, setCurrentBlock] = useState(125490);
   const [pulseActive, setPulseActive] = useState(false);
@@ -254,10 +254,13 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
         {/* Wallet Address Pill */}
         {wallet.isConnected && wallet.address ? (
           <button
+            type="button"
             onClick={() => {
               if (onOpenWalletTerminal) {
                 SoundFX.playClick();
                 onOpenWalletTerminal();
+              } else {
+                openConnectWalletModal();
               }
             }}
             title="Buksan ang Wallet Studio Terminal [W]"
@@ -268,8 +271,9 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
           </button>
         ) : (
           <button
-            onClick={connectInjectedWallet}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all"
+            type="button"
+            onClick={openConnectWalletModal}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 shadow-md transition-all active:scale-95"
           >
             Connect
           </button>

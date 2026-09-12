@@ -94,6 +94,10 @@ contract PISOMineCraft {
     mapping(address => uint256[])     public playerMineIds;
     mapping(address => uint256[8])    public playerBlockCounts;   // Per block type counts
 
+    // Player Level & Progression
+    mapping(address => uint8)         public playerLevel;
+    mapping(address => uint256)       public playerExp;
+
     // Rate limiting: player => window start => count in window
     mapping(address => uint256) public mineWindowStart;
     mapping(address => uint256) public mineWindowCount;
@@ -121,6 +125,23 @@ contract PISOMineCraft {
         int32   worldZ,
         uint256 expAwarded,
         uint256 mineId,
+        uint256 timestamp
+    );
+
+    event PlayerLeveledUp(address indexed player, uint8 newLevel);
+
+    event BlocksPurchased(
+        address indexed buyer,
+        uint8   indexed blockType,
+        uint32  count,
+        uint256 totalPricePiso,
+        uint256 timestamp
+    );
+
+    event BundlePurchased(
+        address indexed buyer,
+        uint8   indexed bundleId,
+        uint256 totalPricePiso,
         uint256 timestamp
     );
 
@@ -183,18 +204,20 @@ contract PISOMineCraft {
 
     /**
      * @notice Record a block mining event on-chain.
-     *         Rate-limited to prevent bot farming.
+     *         Rate-limited to prevent bot farming. Enforces level gating.
      * @param blockType  0–7 (BLOCK_KAHOY .. BLOCK_BITUIN)
      * @param worldX     World X position × 10
      * @param worldZ     World Z position × 10
      */
     function mine(uint8 blockType, int32 worldX, int32 worldZ) external returns (uint256 mineId) {
         require(blockType < BLOCK_TYPE_COUNT, "PISOMineCraft: Invalid block type");
+        require(getPlayerLevel(msg.sender) >= _blockMinLevel(blockType), "PISOMineCraft: Level too low for this block tier");
 
         // Rate limiting
         _checkMineRateLimit(msg.sender);
 
         uint256 expAwarded = _blockExp(blockType);
+        _addPlayerExp(msg.sender, expAwarded);
 
         mineId = totalMineEvents++;
         mineRecords[mineId] = MineRecord({
@@ -210,6 +233,70 @@ contract PISOMineCraft {
         playerBlockCounts[msg.sender][blockType] += 1;
 
         emit BlockMined(msg.sender, blockType, worldX, worldZ, expAwarded, mineId, block.timestamp);
+    }
+
+    // ─── Block Store ($PISO Token) ───────────────────────────────────────────
+
+    /**
+     * @notice Buy resource blocks using $PISO tokens.
+     * @param blockType  0–7 (BLOCK_KAHOY .. BLOCK_BITUIN)
+     * @param count      Quantity to purchase (1–10,000)
+     */
+    function buyBlocks(uint8 blockType, uint32 count) external {
+        require(blockType < BLOCK_TYPE_COUNT, "PISOMineCraft: Invalid block type");
+        require(count > 0 && count <= 10_000, "PISOMineCraft: Count must be 1-10000");
+        require(getPlayerLevel(msg.sender) >= _blockMinLevel(blockType), "PISOMineCraft: Level too low to buy this block tier");
+
+        uint256 unitPrice = _blockPricePiso(blockType);
+        uint256 totalPrice = unitPrice * uint256(count);
+
+        // Transfer $PISO from buyer to this contract
+        _transferFrom(msg.sender, address(this), totalPrice);
+
+        playerBlockCounts[msg.sender][blockType] += count;
+
+        emit BlocksPurchased(msg.sender, blockType, count, totalPrice, block.timestamp);
+    }
+
+    /**
+     * @notice Buy pre-packaged block bundle using $PISO tokens at discounted rates.
+     *         0 = Starter Bahay Bundle (25 Kahoy, 25 Lupa, 10 Bato) — 100 PISO (Lv 1+)
+     *         1 = Fortress Mason Pack (50 Bato, 20 Bakal, 10 Ginto) — 800 PISO (Lv 6+)
+     *         2 = Mythic Architect Pack (10 Bakunawa, 15 Kristal, 5 Bituin) — 4500 PISO (Lv 31+)
+     * @param bundleId  0, 1, or 2
+     */
+    function buyBundle(uint8 bundleId) external {
+        uint256 totalPrice;
+        uint8 pLevel = getPlayerLevel(msg.sender);
+
+        if (bundleId == 0) {
+            // Starter Bahay Bundle (20% off)
+            totalPrice = 100 * 1e18;
+            _transferFrom(msg.sender, address(this), totalPrice);
+            playerBlockCounts[msg.sender][BLOCK_KAHOY] += 25;
+            playerBlockCounts[msg.sender][BLOCK_LUPA]  += 25;
+            playerBlockCounts[msg.sender][BLOCK_BATO]  += 10;
+        } else if (bundleId == 1) {
+            // Fortress Mason Pack (Lvl 6+ required, 15% off)
+            require(pLevel >= 6, "PISOMineCraft: Level 6+ required for Fortress Pack");
+            totalPrice = 800 * 1e18;
+            _transferFrom(msg.sender, address(this), totalPrice);
+            playerBlockCounts[msg.sender][BLOCK_BATO]  += 50;
+            playerBlockCounts[msg.sender][BLOCK_BAKAL] += 20;
+            playerBlockCounts[msg.sender][BLOCK_GINTO] += 10;
+        } else if (bundleId == 2) {
+            // Mythic Architect Pack (Lvl 31+ required, 18% off)
+            require(pLevel >= 31, "PISOMineCraft: Level 31+ required for Mythic Pack");
+            totalPrice = 4500 * 1e18;
+            _transferFrom(msg.sender, address(this), totalPrice);
+            playerBlockCounts[msg.sender][BLOCK_BAKUNAWA] += 10;
+            playerBlockCounts[msg.sender][BLOCK_KRISTAL]  += 15;
+            playerBlockCounts[msg.sender][BLOCK_BITUIN]   += 5;
+        } else {
+            revert("PISOMineCraft: Invalid bundle ID");
+        }
+
+        emit BundlePurchased(msg.sender, bundleId, totalPrice, block.timestamp);
     }
 
     // ─── Building ─────────────────────────────────────────────────────────────
@@ -469,6 +556,68 @@ contract PISOMineCraft {
             abi.encodeWithSignature("transfer(address,uint256)", to, amount)
         );
         require(ok && (data.length == 0 || abi.decode(data, (bool))), "PISOMineCraft: Transfer failed");
+    }
+
+    // ─── Level Progression & Helpers ─────────────────────────────────────────
+
+    /**
+     * @notice Returns player's current level (defaults to 1).
+     */
+    function getPlayerLevel(address player) public view returns (uint8) {
+        uint8 lvl = playerLevel[player];
+        return lvl == 0 ? 1 : lvl;
+    }
+
+    /**
+     * @notice Deterministic EXP requirement for next level.
+     *         Matches frontend PlayerStatsEngine formula exactly:
+     *         100 + (lvl - 1) * 150 + ((lvl - 1) ** 2) * 20
+     */
+    function getExpRequiredForLevel(uint8 lvl) public pure returns (uint256) {
+        if (lvl <= 1) return 100;
+        uint256 n = uint256(lvl) - 1;
+        return 100 + n * 150 + n * n * 20;
+    }
+
+    function _addPlayerExp(address player, uint256 expAwarded) internal {
+        uint8 curLevel = getPlayerLevel(player);
+        playerExp[player] += expAwarded;
+        uint8 startLevel = curLevel;
+
+        while (curLevel < 100) {
+            uint256 nextExp = getExpRequiredForLevel(curLevel);
+            if (playerExp[player] >= nextExp) {
+                playerExp[player] -= nextExp;
+                curLevel += 1;
+            } else {
+                break;
+            }
+        }
+
+        if (curLevel > startLevel) {
+            playerLevel[player] = curLevel;
+            emit PlayerLeveledUp(player, curLevel);
+        }
+    }
+
+    function _blockMinLevel(uint8 blockType) internal pure returns (uint8) {
+        if (blockType == BLOCK_KAHOY || blockType == BLOCK_LUPA) return 1;
+        if (blockType == BLOCK_BATO  || blockType == BLOCK_BAKAL) return 6;
+        if (blockType == BLOCK_GINTO || blockType == BLOCK_KRISTAL) return 16;
+        if (blockType == BLOCK_BAKUNAWA || blockType == BLOCK_BITUIN) return 31;
+        return 1;
+    }
+
+    function _blockPricePiso(uint8 blockType) internal pure returns (uint256) {
+        if (blockType == BLOCK_KAHOY)    return 2 * 1e18;
+        if (blockType == BLOCK_LUPA)     return 1 * 1e18;
+        if (blockType == BLOCK_BATO)     return 5 * 1e18;
+        if (blockType == BLOCK_BAKAL)    return 15 * 1e18;
+        if (blockType == BLOCK_GINTO)    return 40 * 1e18;
+        if (blockType == BLOCK_KRISTAL)  return 80 * 1e18;
+        if (blockType == BLOCK_BAKUNAWA) return 200 * 1e18;
+        if (blockType == BLOCK_BITUIN)   return 450 * 1e18;
+        return 2 * 1e18;
     }
 
     // ─── Events (admin) ───────────────────────────────────────────────────────

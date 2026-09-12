@@ -24,3 +24,6 @@ broadcast/
 .DS_Store
 Thumbs.db
 
+# Temporary archives
+ezgif*
+

@@ -55,61 +55,74 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
     isActive: boolean;
     icon: React.ReactNode;
   }[] = [
-    { key: '1', num: '1', label: 'Quests', onClick: () => onSelectView('courses'), isActive: activeView === 'courses', icon: <BookOpen className="w-5 h-5" /> },
-    { key: '2', num: '2', label: 'Code Lab', onClick: () => onSelectView('lab'), isActive: activeView === 'lab', icon: <Terminal className="w-5 h-5" /> },
-    { key: '3', num: '3', label: 'Deploy Rig', onClick: () => onSelectView('deploy'), isActive: activeView === 'deploy', icon: <Rocket className="w-5 h-5" /> },
-    { key: '4', num: '4', label: 'Katunayan', onClick: () => onSelectView('verify'), isActive: activeView === 'verify', icon: <ShieldCheck className="w-5 h-5" /> },
-    { key: '5', num: '5', label: 'Inventory', onClick: () => onSelectView('profile'), isActive: activeView === 'profile', icon: <User className="w-5 h-5" /> },
-    { key: '6', num: '6', label: 'Directory', onClick: () => onSelectView('projects'), isActive: activeView === 'projects', icon: <Award className="w-5 h-5" /> },
-    { key: '7', num: '7', label: 'Avatar', onClick: () => onOpenHangar?.(), isActive: false, icon: <User className="w-5 h-5 text-amber-400" /> },
-    { key: '8', num: '8', label: 'img23D', onClick: () => onSelectView('img2threejs'), isActive: activeView === 'img2threejs', icon: <Box className="w-5 h-5" /> },
-    { key: '9', num: '9', label: 'World Map', onClick: () => onSelectView('worldmap'), isActive: activeView === 'worldmap', icon: <Globe className="w-5 h-5 text-cyan-400" /> },
+    { key: 'alt1', num: 'Alt+1', label: 'Quests', onClick: () => onSelectView('courses'), isActive: activeView === 'courses', icon: <BookOpen className="w-5 h-5" /> },
+    { key: 'alt2', num: 'Alt+2', label: 'Code Lab', onClick: () => onSelectView('lab'), isActive: activeView === 'lab', icon: <Terminal className="w-5 h-5" /> },
+    { key: 'alt3', num: 'Alt+3', label: 'Deploy Rig', onClick: () => onSelectView('deploy'), isActive: activeView === 'deploy', icon: <Rocket className="w-5 h-5" /> },
+    { key: 'alt4', num: 'Alt+4', label: 'Katunayan', onClick: () => onSelectView('verify'), isActive: activeView === 'verify', icon: <ShieldCheck className="w-5 h-5" /> },
+    { key: 'alt5', num: 'Alt+5', label: 'Inventory', onClick: () => onSelectView('profile'), isActive: activeView === 'profile', icon: <User className="w-5 h-5" /> },
+    { key: 'alt6', num: 'Alt+6', label: 'Directory', onClick: () => onSelectView('projects'), isActive: activeView === 'projects', icon: <Award className="w-5 h-5" /> },
+    { key: 'alt7', num: 'Alt+7', label: 'Avatar', onClick: () => onOpenHangar?.(), isActive: false, icon: <User className="w-5 h-5 text-amber-400" /> },
+    { key: 'alt8', num: 'Alt+8', label: 'img23D', onClick: () => onSelectView('img2threejs'), isActive: activeView === 'img2threejs', icon: <Box className="w-5 h-5" /> },
+    { key: 'alt9', num: 'Alt+9', label: 'World Map', onClick: () => onSelectView('worldmap'), isActive: activeView === 'worldmap', icon: <Globe className="w-5 h-5 text-cyan-400" /> },
+    { key: 'alt10', num: 'Alt+10', label: '70M Bounties', onClick: () => onSelectView('bounties'), isActive: activeView === 'bounties', icon: <Skull className="w-5 h-5 text-rose-400" /> },
     { key: 'p', num: 'P', label: 'PPF Physics', onClick: () => onSelectView('ppfstudio'), isActive: activeView === 'ppfstudio', icon: <Box className="w-5 h-5 text-amber-400" /> },
     { key: 'l', num: 'L', label: 'World Gen', onClick: () => onSelectView('worldgen'), isActive: activeView === 'worldgen', icon: <Globe className="w-5 h-5 text-emerald-400" /> },
     { key: 'k', num: 'K', label: '₱ Farm & Forge', onClick: () => onSelectView('economy'), isActive: activeView === 'economy', icon: <Coins className="w-5 h-5 text-amber-400" /> },
-    { key: 'j', num: 'J', label: '70M Bounties', onClick: () => onSelectView('bounties'), isActive: activeView === 'bounties', icon: <Skull className="w-5 h-5 text-rose-400" /> },
     { key: 'u', num: 'U', label: 'PvP Arena', onClick: () => onSelectView('pvp'), isActive: activeView === 'pvp', icon: <Swords className="w-5 h-5 text-red-400" /> },
     { key: 'c', num: 'C', label: 'P2P Chat', onClick: () => onSelectView('chat'), isActive: activeView === 'chat', icon: <MessageSquare className="w-5 h-5 text-purple-400" /> },
   ];
 
-  // Hotkey listener (1-8, F, M, Q, O, H)
+  // Hotkey listener: Alt+1 to Alt+10 for bottom dock, plus F, M, Q, O, H, P, L, K, J, U, C
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't trigger hotkeys if typing in input/textarea
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
 
-      const num = parseInt(e.key);
-      if (num >= 1 && num <= actions.length) {
-        SoundFX.playClick();
-        actions[num - 1].onClick();
-      } else if (e.key.toLowerCase() === 'f') {
+      // Handle Alt + 1 through Alt + 10 (0 on number row)
+      if (e.altKey) {
+        let altIdx = -1;
+        if (e.key >= '1' && e.key <= '9') {
+          altIdx = parseInt(e.key) - 1;
+        } else if (e.key === '0') {
+          altIdx = 9; // Alt+10 mapped to 0 key
+        }
+        if (altIdx >= 0 && altIdx < 10 && altIdx < actions.length) {
+          e.preventDefault();
+          SoundFX.playClick();
+          actions[altIdx].onClick();
+          return;
+        }
+      }
+
+      // Non-alt single hotkeys (F, M, Q, O, H, etc.)
+      if (e.key.toLowerCase() === 'f' && !e.altKey && !e.ctrlKey) {
         SoundFX.playLaser();
         onRequestFaucet();
-      } else if (e.key.toLowerCase() === 'm') {
+      } else if (e.key.toLowerCase() === 'm' && !e.altKey && !e.ctrlKey) {
         onToggleMute();
-      } else if (e.key.toLowerCase() === 'q' && onOpenQuests) {
+      } else if (e.key.toLowerCase() === 'q' && !e.altKey && !e.ctrlKey && onOpenQuests) {
         SoundFX.playClick();
         onOpenQuests();
-      } else if (e.key.toLowerCase() === 'o' && onOpenOptions) {
+      } else if (e.key.toLowerCase() === 'o' && !e.altKey && !e.ctrlKey && onOpenOptions) {
         SoundFX.playClick();
         onOpenOptions();
-      } else if (e.key.toLowerCase() === 'h' && onOpenTutorial) {
+      } else if (e.key.toLowerCase() === 'h' && !e.altKey && !e.ctrlKey && onOpenTutorial) {
         SoundFX.playClick();
         onOpenTutorial();
-      } else if (e.key.toLowerCase() === 'c') {
+      } else if (e.key.toLowerCase() === 'c' && !e.altKey && !e.ctrlKey) {
         SoundFX.playClick();
         onSelectView('chat');
-      } else if (e.key.toLowerCase() === 'u') {
+      } else if (e.key.toLowerCase() === 'u' && !e.altKey && !e.ctrlKey) {
         SoundFX.playClick();
         onSelectView('pvp');
-      } else if (e.key.toLowerCase() === 'l') {
+      } else if (e.key.toLowerCase() === 'l' && !e.altKey && !e.ctrlKey) {
         SoundFX.playClick();
         onSelectView('worldgen');
-      } else if (e.key.toLowerCase() === 'k') {
+      } else if (e.key.toLowerCase() === 'k' && !e.altKey && !e.ctrlKey) {
         SoundFX.playClick();
         onSelectView('economy');
-      } else if (e.key.toLowerCase() === 'j') {
+      } else if (e.key.toLowerCase() === 'j' && !e.altKey && !e.ctrlKey) {
         SoundFX.playClick();
         onSelectView('bounties');
       } else if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 'w' && onOpenWalletTerminal) {
@@ -135,7 +148,7 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
           title="Restore Bottom App Dock"
         >
           <span>▲ APPS DOCK</span>
-          <span className="text-[10px] text-slate-400 font-mono">[1-9, P]</span>
+          <span className="text-[10px] text-slate-400 font-mono">[Alt+1 to Alt+10]</span>
         </button>
       </div>
     );
@@ -159,8 +172,8 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
             }`}
           >
             {/* Hotkey Number Badge */}
-            <span className="absolute top-1 left-1.5 font-mono text-[9px] font-black text-amber-400 opacity-90">
-              [{act.num}]
+            <span className="absolute top-0.5 left-1 font-mono text-[8px] font-black text-amber-400/90 tracking-tighter">
+              {act.num}
             </span>
 
             <div className="mt-2">{act.icon}</div>

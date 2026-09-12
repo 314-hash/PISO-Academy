@@ -4,6 +4,7 @@ import { CHALLENGES, Challenge } from '../data/challenges';
 import { WalletService, WalletState } from '../services/walletService';
 import { CertificateService, VerifiedCertificate } from '../services/certificateService';
 import { ContractDeployer, DeploymentReceipt } from '../services/contractDeployer';
+import { PlayerStatsEngine } from '../services/PlayerStatsEngine';
 
 export type NavView = 'home' | 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'img2threejs' | 'worldmap' | 'chat' | 'ppfstudio' | 'worldgen' | 'economy' | 'bounties' | 'pvp';
 
@@ -42,7 +43,10 @@ export interface HumanAvatarConfig {
     | 'barongCyber'
     | 'katipunanTech'
     | 'babaylanRobes'
-    | 'manilaHoodie';
+    | 'manilaHoodie'
+    | 'plainTshirt'
+    | 'none'
+    | 'default';
   accessory:
     | 'pisoSunCrest'
     | 'sampaguitaPin'
@@ -79,38 +83,65 @@ export interface HumanAvatarConfig {
 
 export const DEFAULT_HUMAN_AVATAR: HumanAvatarConfig = {
   gender: 'male',
-  name: 'Datu Supremo (Founder)',
+  name: 'Bagong Mandirigma',
   skinTone: '#8D5524',
-  hairStyle: 'datuLongWavy',
+  hairStyle: 'cyberFade',
   hairColor: '#0B0F17',
-  outfit: 'founderArmor',
-  accessory: 'pisoSunCrest',
-  backCrest: 'philippineSunStars',
-  cape: 'founderCape',
-  hasBeard: true,
+  outfit: 'plainTshirt',
+  accessory: 'none',
+  backCrest: 'none',
+  cape: 'none',
+  hasBeard: false,
   uploadedTextureUrl: '',
   uploadedFileName: '',
-  aiPrompt: 'PISO Sovereign Founder — Radiant 8-ray Philippine Sun, gold-embossed ₱ chestplate, long flowing locks, royal blue & crimson cape, black nano-armor with gold filigree',
-  auraColor: '#F59E0B',
+  aiPrompt: 'PISO Default Explorer — Clean white plain t-shirt, casual denim shorts, neutral starter adventurer without costume',
+  auraColor: '#06B6D4',
   bodyType: 'athletic',
   petDrone: {
-    enabled: true,
+    enabled: false,
     skin: 'panday',
-    auraColor: '#F59E0B',
+    auraColor: '#06B6D4',
   },
   equippedPinoyItems: {
-    weapon: 'kampilan-lapulapu',
-    shield: 'kaldero-lid-aegis',
-    headwear: 'salakot-solar',
-    towel: 'good-morning-towel',
-    crown: 'datu-sun-crown',
-    back: 'sarimanok-wings',
-    signboard: 'jeepney-route-sign',
-    amulet: 'agimat-anting',
-    tabo: 'tabo-cleansing',
-    allEquipped: true,
+    weapon: '',
+    shield: '',
+    headwear: '',
+    towel: '',
+    crown: '',
+    back: '',
+    signboard: '',
+    amulet: '',
+    tabo: '',
+    allEquipped: false,
     superpower: 'kamehameha',
   },
+};
+
+export interface AvatarNftData {
+  tokenId: number;
+  contractAddress: string;
+  name: string;
+  dnaHash: string;
+  gender: 'male' | 'female';
+  level: number;
+  ownerAddress: string;
+  mintTimestamp: number;
+  isMinted: boolean;
+  isDefaultCostume: boolean;
+  isGuest?: boolean;
+}
+
+export const DEFAULT_AVATAR_NFT: AvatarNftData = {
+  tokenId: 1,
+  contractAddress: '0x3140000000000000000000000000000000000077',
+  name: 'Bagong Mandirigma',
+  dnaHash: 'piso_dna_starter_001',
+  gender: 'male',
+  level: 1,
+  ownerAddress: '0x0000000000000000000000000000000000000000',
+  mintTimestamp: Date.now(),
+  isMinted: true,
+  isDefaultCostume: true,
 };
 
 export function safeHexColor(hex: string | undefined | null, fallback: number): number {
@@ -133,6 +164,60 @@ export interface DailyQuest {
   category: string;
 }
 
+export interface KeybindConfig {
+  forward: string;
+  backward: string;
+  left: string;
+  right: string;
+  jump: string;
+  sprint: string;
+  interact: string;
+  mine: string;
+  skillPrimary: string;
+  skill1: string;
+  skill2: string;
+  skill3: string;
+  skill4: string;
+  skill5: string;
+  skill6: string;
+  skill7: string;
+  skill8: string;
+  skill9: string;
+  skill10: string;
+  autoAttack: string;
+  builderMode: string;
+  miningStudio: string;
+  avatarOptions: string;
+  inventory: string;
+}
+
+export const DEFAULT_KEYBINDS: KeybindConfig = {
+  forward: 'w',
+  backward: 's',
+  left: 'a',
+  right: 'd',
+  jump: ' ',
+  sprint: 'shift',
+  interact: 'b', // NPC Talk & Interact is letter B
+  mine: 'q',
+  skillPrimary: 'e', // Primary Skill hotkey
+  skill1: '1',
+  skill2: '2',
+  skill3: '3',
+  skill4: '4',
+  skill5: '5',
+  skill6: '6',
+  skill7: '7',
+  skill8: '8',
+  skill9: '9',
+  skill10: '0', // 10th skill mapped to '0' on number row
+  autoAttack: 'z',
+  builderMode: 'v',
+  miningStudio: 'm',
+  avatarOptions: 'n',
+  inventory: 'i',
+};
+
 export interface ControlSettings {
   cameraMode: 'isometric' | 'follow' | 'topdown';
   flightSpeed: 'normal' | 'turbo';
@@ -145,6 +230,7 @@ export interface ControlSettings {
   swapJoystickSide: boolean;
   autoTargetLock: boolean;
   performanceTier: 'low' | 'balanced' | 'ultra';
+  keybinds: KeybindConfig;
 }
 
 interface AcademyContextType {
@@ -163,6 +249,10 @@ interface AcademyContextType {
   setActiveChallenge: (challenge: Challenge) => void;
   wallet: WalletState;
   connectInjectedWallet: () => Promise<void>;
+  connectExistingWallet: (input: string) => Promise<{ address: string; balance: string }>;
+  isConnectWalletModalOpen: boolean;
+  openConnectWalletModal: () => void;
+  closeConnectWalletModal: () => void;
   createBurnerWallet: () => void;
   disconnectWallet: () => void;
   requestFaucet: () => Promise<void>;
@@ -189,6 +279,9 @@ interface AcademyContextType {
   setAvatarMode: (mode: 'human' | 'drone') => void;
   humanAvatar: HumanAvatarConfig;
   setHumanAvatar: (cfg: HumanAvatarConfig) => void;
+  avatarNft: AvatarNftData;
+  setAvatarNft: (nft: AvatarNftData | ((prev: AvatarNftData) => AvatarNftData)) => void;
+  mintOrBindAvatarNft: (name: string, gender: 'male' | 'female', dnaHash: string, walletAddress?: string) => AvatarNftData;
   dailyQuests: DailyQuest[];
   claimDailyQuest: (questId: string) => void;
   recordQuestProgress: (questId: string, amount?: number) => void;
@@ -366,6 +459,49 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem('piso_human_avatar', JSON.stringify(merged));
   };
 
+  const [avatarNft, setAvatarNftState] = useState<AvatarNftData>(() => {
+    try {
+      const saved = localStorage.getItem('piso_avatar_nft_v1');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return DEFAULT_AVATAR_NFT;
+  });
+
+  const setAvatarNft = (updater: AvatarNftData | ((prev: AvatarNftData) => AvatarNftData)) => {
+    setAvatarNftState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      localStorage.setItem('piso_avatar_nft_v1', JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent('piso-avatar-nft-updated', { detail: { nft: next } }));
+      return next;
+    });
+  };
+
+  const mintOrBindAvatarNft = (
+    name: string,
+    gender: 'male' | 'female',
+    dnaHash: string,
+    walletAddress?: string
+  ): AvatarNftData => {
+    const owner = walletAddress || wallet.address || '0x0000000000000000000000000000000000000000';
+    const newNft: AvatarNftData = {
+      tokenId: Math.floor(Date.now() / 1000),
+      contractAddress: '0x3140000000000000000000000000000000000077',
+      name: name || 'Bagong Mandirigma',
+      dnaHash: dnaHash || `piso_dna_${Date.now()}`,
+      gender,
+      level: 1,
+      ownerAddress: owner,
+      mintTimestamp: Date.now(),
+      isMinted: true,
+      isDefaultCostume: true,
+    };
+    setAvatarNft(newNft);
+    window.dispatchEvent(new CustomEvent('piso-avatar-nft-minted', { detail: { nft: newNft } }));
+    return newNft;
+  };
+
   const [dailyQuests, setDailyQuests] = useState<DailyQuest[]>(() => {
     const saved = localStorage.getItem('piso_daily_quests');
     return saved ? JSON.parse(saved) : INITIAL_DAILY_QUESTS;
@@ -420,10 +556,16 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       swapJoystickSide: false,
       autoTargetLock: true,
       performanceTier: 'balanced',
+      keybinds: DEFAULT_KEYBINDS,
     };
     if (saved) {
       try {
-        return { ...defaults, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved);
+        return {
+          ...defaults,
+          ...parsed,
+          keybinds: { ...DEFAULT_KEYBINDS, ...(parsed.keybinds || {}) },
+        };
       } catch {}
     }
     return defaults;
@@ -550,15 +692,68 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const toggleGameMode = () => setGameMode((prev) => !prev);
 
-  const level = Math.floor(xp / 500) + 1;
+  const [playerStatsLevel, setPlayerStatsLevel] = useState<number>(() => {
+    try {
+      return PlayerStatsEngine.getStats().level;
+    } catch {
+      return 1;
+    }
+  });
+
+  // Sync EXP & Level Up Events with Monster Farming, Mining, and Quests
+  useEffect(() => {
+    const handleExpGained = (e: any) => {
+      const detail = e.detail;
+      if (detail && typeof detail.totalXp === 'number') {
+        setXp(detail.totalXp);
+      } else if (detail && typeof detail.amount === 'number') {
+        setXp((prev) => prev + detail.amount);
+      }
+      if (detail && typeof detail.level === 'number') {
+        setPlayerStatsLevel(detail.level);
+      }
+    };
+
+    const handleStatsUpdated = (e: any) => {
+      if (e.detail && typeof e.detail.level === 'number') {
+        setPlayerStatsLevel(e.detail.level);
+      }
+    };
+
+    const handleLevelUp = (e: any) => {
+      if (e.detail && typeof e.detail.newLevel === 'number') {
+        setPlayerStatsLevel(e.detail.newLevel);
+        setNotification({
+          message: `🎉 LEVEL UP! Narating mo ang Level ${e.detail.newLevel}! (+${(e.detail.levelsGained || 1) * 3} Stat Points)`,
+          type: 'success',
+        });
+      }
+    };
+
+    window.addEventListener('piso-exp-gained', handleExpGained);
+    window.addEventListener('piso-player-stats-updated', handleStatsUpdated);
+    window.addEventListener('piso-level-up', handleLevelUp);
+    return () => {
+      window.removeEventListener('piso-exp-gained', handleExpGained);
+      window.removeEventListener('piso-player-stats-updated', handleStatsUpdated);
+      window.removeEventListener('piso-level-up', handleLevelUp);
+    };
+  }, []);
+
+  const level = Math.max(playerStatsLevel, Math.floor(xp / 500) + 1);
   const getLevelTitle = (l: number) => {
     if (l <= 1) return 'LEVEL 1: Blockchain Explorer';
-    if (l === 2) return 'LEVEL 2: Smart Contract Builder';
-    if (l === 3) return 'LEVEL 3: dApp Developer';
-    if (l === 4) return 'LEVEL 4: PISO Builder';
-    return 'LEVEL 5: PISO Core Builder';
+    if (l <= 4) return `LEVEL ${l}: Smart Contract Builder`;
+    if (l <= 9) return `LEVEL ${l}: dApp Developer`;
+    if (l <= 14) return `LEVEL ${l}: PISO Hunter & Builder`;
+    if (l <= 19) return `LEVEL ${l}: Titan Slayer`;
+    return `LEVEL ${l}: Sovereign PISO Architect`;
   };
   const levelTitle = getLevelTitle(level);
+
+  const [isConnectWalletModalOpen, setIsConnectWalletModalOpen] = useState(false);
+  const openConnectWalletModal = () => setIsConnectWalletModalOpen(true);
+  const closeConnectWalletModal = () => setIsConnectWalletModalOpen(false);
 
   const connectInjectedWallet = async () => {
     try {
@@ -574,11 +769,41 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         message: `Connected wallet: ${injected.address.slice(0, 6)}...${injected.address.slice(-4)} to PISO Chain`,
         type: 'success',
       });
+      setAvatarNft((prev) => ({ ...prev, ownerAddress: injected.address }));
+      closeConnectWalletModal();
     } catch (err: any) {
       setNotification({
         message: err.message || 'Failed to connect wallet.',
         type: 'error',
       });
+    }
+  };
+
+  const connectExistingWallet = async (input: string): Promise<{ address: string; balance: string }> => {
+    try {
+      const imported = WalletService.connectExistingWallet(input);
+      const bal = await WalletService.getBalance(imported.address);
+      setWallet({
+        address: imported.address,
+        balance: bal,
+        type: 'burner',
+        isConnected: true,
+        chainId: 2026001,
+      });
+      setAvatarNft((prev) => ({ ...prev, ownerAddress: imported.address }));
+      recordQuestProgress('wallet-studio-quest', 1);
+      setNotification({
+        message: `Existing wallet connected: ${imported.address.slice(0, 6)}...${imported.address.slice(-4)} (${parseFloat(bal).toFixed(2)} ₱PISO)`,
+        type: 'success',
+      });
+      closeConnectWalletModal();
+      return { address: imported.address, balance: bal };
+    } catch (err: any) {
+      setNotification({
+        message: err.message || 'Failed to connect existing wallet.',
+        type: 'error',
+      });
+      throw err;
     }
   };
 
@@ -737,6 +962,10 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveChallenge,
         wallet,
         connectInjectedWallet,
+        connectExistingWallet,
+        isConnectWalletModalOpen,
+        openConnectWalletModal,
+        closeConnectWalletModal,
         createBurnerWallet,
         disconnectWallet,
         requestFaucet,
@@ -761,6 +990,9 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setAvatarMode,
         humanAvatar,
         setHumanAvatar,
+        avatarNft,
+        setAvatarNft,
+        mintOrBindAvatarNft,
         dailyQuests,
         claimDailyQuest,
         recordQuestProgress,

@@ -27,7 +27,8 @@ export interface CharacterMeshInstance {
     time: number,
     isJumping?: boolean,
     isDoubleJump?: boolean,
-    jumpVelocityY?: number
+    jumpVelocityY?: number,
+    isMining?: boolean
   ) => void;
 }
 
@@ -109,7 +110,7 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
 
   const isFemale = config.gender === 'female';
   const isFounder = config.outfit === 'founderArmor';
-  const outfit = config.outfit || (isFounder ? 'founderArmor' : isFemale ? 'mariaClaraCyber' : 'barongCyber');
+  const outfit = config.outfit || 'plainTshirt';
 
   // Palette and materials for costumes
   const ivoryTernoMat = new THREE.MeshStandardMaterial({ color: 0xFDFEFE, roughness: 0.35, metalness: 0.15 });
@@ -117,6 +118,7 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
   const babaylanAstralMat = new THREE.MeshStandardMaterial({ color: 0x581C87, roughness: 0.3, metalness: 0.4 });
   const forgeObsidianMat = new THREE.MeshStandardMaterial({ color: 0x1C1917, roughness: 0.4, metalness: 0.7 });
   const bayanihanCyanMat = new THREE.MeshStandardMaterial({ color: 0x0891B2, roughness: 0.35, metalness: 0.3 });
+  const plainWhiteCottonMat = new THREE.MeshStandardMaterial({ color: 0xF8FAFC, roughness: 0.85, metalness: 0.02 });
 
   // Base torso body dimensions (Feminine vs Masculine)
   const torsoWidth = isFemale ? 0.50 : 0.62;
@@ -124,7 +126,8 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
   const torsoDepth = isFemale ? 0.33 : 0.38;
 
   let torsoMat = darkArmorMat;
-  if (outfit === 'mariaClaraCyber') torsoMat = ivoryTernoMat;
+  if (outfit === 'plainTshirt' || outfit === 'default' || outfit === 'none') torsoMat = plainWhiteCottonMat;
+  else if (outfit === 'mariaClaraCyber') torsoMat = ivoryTernoMat;
   else if (outfit === 'urdujaArmor') torsoMat = urdujaCrimsonMat;
   else if (outfit === 'babaylanOracle') torsoMat = babaylanAstralMat;
   else if (outfit === 'pandayBlacksmith') torsoMat = forgeObsidianMat;
@@ -740,6 +743,34 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
   const amuletId = equippedPinoy?.amulet;
   const taboId = equippedPinoy?.tabo;
 
+  // Pickaxe / Axe for mining
+  const attachAxe = (parent: THREE.Group) => {
+    const axeGroup = new THREE.Group();
+    axeGroup.position.set(0, -0.60, 0.1);
+    axeGroup.rotation.x = Math.PI / 4;
+
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x5C4033 }));
+    handle.position.set(0, 0.1, 0);
+    axeGroup.add(handle);
+
+    const bladeMat = new THREE.MeshStandardMaterial({ color: 0x94A3B8, metalness: 0.8, roughness: 0.2 });
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.05), bladeMat);
+    head.position.set(0, 0.45, 0);
+    axeGroup.add(head);
+
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), bladeMat);
+    spike.position.set(0.15, 0.45, 0);
+    spike.rotation.z = -Math.PI / 2;
+    axeGroup.add(spike);
+
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.25, 4), bladeMat);
+    blade.position.set(-0.15, 0.45, 0);
+    blade.rotation.z = Math.PI / 2;
+    axeGroup.add(blade);
+
+    parent.add(axeGroup);
+  };
+
   // 1. Kampilan Plasma Blade
   const attachKampilan = (parent: THREE.Group) => {
     const bladeGroup = new THREE.Group();
@@ -1045,25 +1076,36 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
     attachSarimanokWings(torsoGroup);
     attachJeepneySign(torsoGroup, -0.26);
   } else {
-    // Individual slot equipment
-    if (weaponId === 'kampilan-lapulapu') attachKampilan(rightArmGroup);
-    else if (weaponId === 'tsinelas-common') attachTsinelas(rightArmGroup);
-    else if (weaponId === 'walis-tambo-whirlwind') attachWalis(rightArmGroup);
-    else if (weaponId === 'bathala-kilat') attachBathalaScepter(rightArmGroup);
-    else if (weaponId === 'karaoke-mic-stun') attachKaraokeMic(rightArmGroup);
+    // Individual slot equipment with robust substring & ID matching
+    const wid = (weaponId || '').toLowerCase();
+    if (wid.includes('kampilan') || wid.includes('saber') || wid.includes('balisong') || wid === '1') attachKampilan(rightArmGroup);
+    else if (wid.includes('tsinelas') || wid.includes('slipper') || wid === '6') attachTsinelas(rightArmGroup);
+    else if (wid.includes('walis') || wid.includes('broom')) attachWalis(rightArmGroup);
+    else if (wid.includes('bathala') || wid.includes('kilat') || wid.includes('scepter')) attachBathalaScepter(rightArmGroup);
+    else if (wid.includes('karaoke') || wid.includes('mic')) attachKaraokeMic(rightArmGroup);
+    else attachAxe(rightArmGroup);
 
-    if (shieldId === 'kaldero-lid-aegis' || weaponId === 'kaldero-lid-aegis') attachKalderoLid(leftArmGroup);
+    const sid = (shieldId || '').toLowerCase();
+    if (sid.includes('kaldero') || sid.includes('shield') || wid.includes('kaldero') || sid === '3') attachKalderoLid(leftArmGroup);
 
-    if (headwearId === 'salakot-solar') attachSalakot(headGroup);
-    else if (headwearId === 'good-morning-towel' || towelId === 'good-morning-towel') attachGoodMorningTowel(headGroup);
-    else if (headwearId === 'datu-sun-crown' || crownId === 'datu-sun-crown') attachDatuCrown(headGroup);
+    const hid = (headwearId || '').toLowerCase();
+    const tid = (towelId || '').toLowerCase();
+    const cid = (crownId || '').toLowerCase();
+    if (hid.includes('salakot') || hid === '4') attachSalakot(headGroup);
+    else if (hid.includes('towel') || tid.includes('towel') || hid === '5') attachGoodMorningTowel(headGroup);
+    else if (hid.includes('crown') || cid.includes('crown') || hid.includes('maharlika')) attachDatuCrown(headGroup);
 
-    if (amuletId === 'agimat-anting') attachAgimatAmulet(torsoGroup);
-    if (taboId === 'tabo-cleansing') attachTabo(torsoGroup);
+    const aid = (amuletId || '').toLowerCase();
+    if (aid.includes('agimat') || aid.includes('anting') || aid === '1') attachAgimatAmulet(torsoGroup);
 
-    if (backId === 'sarimanok-wings') attachSarimanokWings(torsoGroup);
-    else if (backId === 'bakunawa-wings') attachBakunawaWings(torsoGroup);
-    else if (backId === 'jeepney-route-sign' || signboardId === 'jeepney-route-sign') attachJeepneySign(torsoGroup);
+    const tabId = (taboId || '').toLowerCase();
+    if (tabId.includes('tabo') || tabId === '2') attachTabo(torsoGroup);
+
+    const bid = (backId || '').toLowerCase();
+    const sbid = (signboardId || '').toLowerCase();
+    if (bid.includes('sarimanok')) attachSarimanokWings(torsoGroup);
+    else if (bid.includes('bakunawa')) attachBakunawaWings(torsoGroup);
+    else if (bid.includes('sign') || sbid.includes('sign') || bid.includes('jeepney')) attachJeepneySign(torsoGroup);
   }
 
   // 7. Legs & Greaves (Pivot at hips)
@@ -1136,7 +1178,8 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
     time: number,
     isJumping: boolean = false,
     isDoubleJump: boolean = false,
-    jumpVelocityY: number = 0
+    jumpVelocityY: number = 0,
+    isMining: boolean = false
   ) => {
     if (isJumping) {
       // Dynamic Airborne / Leap Pose
@@ -1177,6 +1220,18 @@ export function createHumanoidCharacter(config: HumanAvatarConfig): CharacterMes
         sunHaloGroup.rotation.z += delta * (isDoubleJump ? 6.5 : 3.5);
       }
       rootGroup.position.y = 0.05;
+    } else if (isMining) {
+      // Rapid chopping motion
+      const mineSwing = Math.sin(time * 20) * 0.8;
+      rig.rightArm.rotation.x = -0.5 + mineSwing;
+      rig.rightArm.rotation.z = 0.1;
+      
+      rig.leftArm.rotation.x = THREE.MathUtils.lerp(rig.leftArm.rotation.x, -0.2, 0.2);
+      
+      rig.leftLeg.rotation.x = THREE.MathUtils.lerp(rig.leftLeg.rotation.x, 0.1, 0.2);
+      rig.rightLeg.rotation.x = THREE.MathUtils.lerp(rig.rightLeg.rotation.x, -0.1, 0.2);
+      rig.leftKnee.rotation.x = THREE.MathUtils.lerp(rig.leftKnee.rotation.x, 0.05, 0.2);
+      rig.rightKnee.rotation.x = THREE.MathUtils.lerp(rig.rightKnee.rotation.x, 0.05, 0.2);
     } else if (isMoving) {
       const sinWalk = Math.sin(walkPhase);
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { useAcademy, AvatarSkinId, safeHexColor } from '../../context/AcademyContext';
+import { useAcademy, AvatarSkinId, safeHexColor, DEFAULT_KEYBINDS, KeybindConfig } from '../../context/AcademyContext';
 import { SoundFX } from '../../services/soundFX';
 import {
   createHumanoidCharacter,
@@ -160,6 +160,7 @@ interface Cyber3DWorldProps {
   onCruiseTargetChange?: (target: CruiseTargetInfo | null) => void;
   playerPosRef: React.MutableRefObject<{ x: number; z: number; heading: number }>;
   onMiningEngineReady?: (engine: MiningBlockEngine) => void;
+  onMonsterEngineReady?: (engine: MonsterSpawnEngine) => void;
 }
 
 export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
@@ -170,6 +171,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
   onCruiseTargetChange,
   playerPosRef,
   onMiningEngineReady,
+  onMonsterEngineReady,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const activeNearbyDistrictRef = useRef<DistrictInfo | null>(null);
@@ -181,6 +183,10 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
   const onProximityChangeRef = useRef(onProximityChange);
   const onCruiseTargetChangeRef = useRef(onCruiseTargetChange);
   const onMiningEngineReadyRef = useRef(onMiningEngineReady);
+  const onMonsterEngineReadyRef = useRef(onMonsterEngineReady);
+
+  const { avatarSkin, avatarMode, humanAvatar, controlSettings } = useAcademy();
+  const controlSettingsRef = useRef(controlSettings);
 
   useEffect(() => {
     onDistrictSelectRef.current = onDistrictSelect;
@@ -189,9 +195,9 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     onProximityChangeRef.current = onProximityChange;
     onCruiseTargetChangeRef.current = onCruiseTargetChange;
     onMiningEngineReadyRef.current = onMiningEngineReady;
+    onMonsterEngineReadyRef.current = onMonsterEngineReady;
+    controlSettingsRef.current = controlSettings;
   });
-
-  const { avatarSkin, avatarMode, humanAvatar, controlSettings } = useAcademy();
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -353,6 +359,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     // 6C. 3D Procedural Monster Engine (Giga Buwaya Titans + Small Monster Farms)
     const monsterSpawnEngine = new MonsterSpawnEngine(scene);
+    onMonsterEngineReadyRef.current?.(monsterSpawnEngine);
 
     // 6D. 3D Holographic Auto-Target Lock Reticle
     const reticleGroup = new THREE.Group();
@@ -1088,7 +1095,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     let prevPointerY = 0;
 
     // 12. Input Handling & Jump Mechanics
-    const keys = { w: false, s: false, a: false, d: false, shift: false, space: false };
+    const keys = { w: false, s: false, a: false, d: false, shift: false, space: false, eHold: false };
 
     // Jump & Double Jump State
     let jumpCount = 0; // 0 = grounded, 1 = single jump, 2 = double jump
@@ -1251,54 +1258,95 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
       const k = e.key.toLowerCase();
-      if (e.code === 'Space' || e.key === ' ') {
+      const kb = controlSettingsRef.current.keybinds || DEFAULT_KEYBINDS;
+
+      const isJumpKey = (kb.jump === ' ' && (e.code === 'Space' || e.key === ' ')) || k === (kb.jump || ' ').toLowerCase();
+      if (isJumpKey) {
         e.preventDefault();
         keys.space = true;
         triggerJump();
         return;
       }
-      if (k === 'w' || k === 'arrowup') keys.w = true;
-      if (k === 's' || k === 'arrowdown') keys.s = true;
-      if (k === 'a' || k === 'arrowleft') keys.a = true;
-      if (k === 'd' || k === 'arrowright') keys.d = true;
-      if (e.shiftKey) keys.shift = true;
 
-      // N Key: GUARANTEED rotation to the next NPC Mentor!
-      if (k === 'n') {
-        cycleNextMentor();
+      const isFwd = k === (kb.forward || 'w').toLowerCase() || k === 'arrowup';
+      const isBack = k === (kb.backward || 's').toLowerCase() || k === 'arrowdown';
+      const isLeft = k === (kb.left || 'a').toLowerCase() || k === 'arrowleft';
+      const isRight = k === (kb.right || 'd').toLowerCase() || k === 'arrowright';
+      const isSprint = (kb.sprint === 'shift' && e.shiftKey) || k === (kb.sprint || 'shift').toLowerCase();
+
+      if (isFwd) keys.w = true;
+      if (isBack) keys.s = true;
+      if (isLeft) keys.a = true;
+      if (isRight) keys.d = true;
+      if (isSprint) keys.shift = true;
+
+      // Avatar Options on 'N' (or configured key)
+      if (k === (kb.avatarOptions || 'n').toLowerCase() || k === 'n') {
+        window.dispatchEvent(new CustomEvent('piso-open-avatar-options'));
         return;
       }
 
-      // B Key: Toggle Builder Mode
-      if (k === 'b') {
+      // Inventory & Bidding Market on 'I' (or configured key)
+      if (k === (kb.inventory || 'i').toLowerCase() || k === 'i') {
+        window.dispatchEvent(new CustomEvent('piso-open-inventory'));
+        return;
+      }
+
+      // Auto-Attack / Reticle Lock Toggle
+      if (k === (kb.autoAttack || 'z').toLowerCase()) {
+        window.dispatchEvent(new CustomEvent('piso-toggle-auto-attack'));
+        return;
+      }
+
+      // Builder Mode Toggle (Default 'v')
+      if (k === (kb.builderMode || 'v').toLowerCase()) {
         activeMiningEngine.builderMode = !activeMiningEngine.builderMode;
         return;
       }
 
-      // M Key: Open Mining & Building Studio
-      if (k === 'm') {
+      // Mining & Building Studio
+      if (k === (kb.miningStudio || 'm').toLowerCase()) {
         window.dispatchEvent(new CustomEvent('piso-open-mining-studio'));
         return;
       }
 
-      // E Key interacts with nearby Mentor/District within 4.0 units, OR cycles/moves to the NEXT option!
-      if (k === 'e') {
-        // 0. Builder mode placement overrides all other E actions
+      // Primary Anime Skill / Hold E to Seek Nearest Block
+      if (k === (kb.skillPrimary || 'e').toLowerCase() || k === 'e') {
+        keys.eHold = true;
+        const playerStats = PlayerStatsEngine.getStats();
+        const miningResult = activeMiningEngine.mineNearestBlock(droneGroup.position, playerStats.level, 3.5);
+        if (miningResult) {
+          SoundFX.playLaser?.();
+          PlayerStatsEngine.addMiningExp(miningResult.block.type, miningResult.exp);
+          miningTimer = 0.5;
+        } else {
+          const powerId = humanAvatar?.equippedPinoyItems?.superpower || 'kamehameha';
+          window.dispatchEvent(new CustomEvent('piso-trigger-superpower', { detail: { powerId } }));
+        }
+        return;
+      }
+
+      // Mine Nearest Block: "Q" (or configured key)
+      if (k === (kb.mine || 'q').toLowerCase()) {
+        const playerStats = PlayerStatsEngine.getStats();
+        const miningResult = activeMiningEngine.mineNearestBlock(droneGroup.position, playerStats.level, 3.5);
+        if (miningResult) {
+          SoundFX.playLaser?.(); // Mining sound effect
+          PlayerStatsEngine.addMiningExp(miningResult.block.type, miningResult.exp);
+          miningTimer = 0.5; // Trigger axe chopping animation for 0.5s
+          return;
+        }
+      }
+
+      // NPC Interact / Talk / Cycle Key: Letter B (or configured key)
+      if (k === (kb.interact || 'b').toLowerCase() || k === 'b') {
+        // 0. Builder mode placement
         if (activeMiningEngine.builderMode) {
           const buildDist = 3.5;
           const bx = droneGroup.position.x + Math.sin(droneHeading) * buildDist;
           const bz = droneGroup.position.z - Math.cos(droneHeading) * buildDist;
           const buildPos = new THREE.Vector3(bx, 0, bz);
           activeMiningEngine.placeBlock(activeMiningEngine.selectedBlockType, buildPos);
-          return;
-        }
-
-        // 0.5. Check for mineable blocks first
-        const playerStats = PlayerStatsEngine.getStats();
-        const miningResult = activeMiningEngine.mineNearestBlock(droneGroup.position, playerStats.level, 3.5);
-        if (miningResult) {
-          SoundFX.playLaser?.(); // temporary mining sound effect
-          PlayerStatsEngine.addMiningExp(miningResult.block.type, miningResult.exp);
           return;
         }
 
@@ -1372,18 +1420,39 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     const handleKeyUp = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (e.code === 'Space' || e.key === ' ') {
+      const kb = controlSettingsRef.current.keybinds || DEFAULT_KEYBINDS;
+      const isJumpKey = (kb.jump === ' ' && (e.code === 'Space' || e.key === ' ')) || k === (kb.jump || ' ').toLowerCase();
+      if (isJumpKey) {
         keys.space = false;
       }
-      if (k === 'w' || k === 'arrowup') keys.w = false;
-      if (k === 's' || k === 'arrowdown') keys.s = false;
-      if (k === 'a' || k === 'arrowleft') keys.a = false;
-      if (k === 'd' || k === 'arrowright') keys.d = false;
-      if (!e.shiftKey) keys.shift = false;
+      if (k === (kb.skillPrimary || 'e').toLowerCase() || k === 'e') {
+        keys.eHold = false;
+      }
+      if (k === (kb.forward || 'w').toLowerCase() || k === 'arrowup') keys.w = false;
+      if (k === (kb.backward || 's').toLowerCase() || k === 'arrowdown') keys.s = false;
+      if (k === (kb.left || 'a').toLowerCase() || k === 'arrowleft') keys.a = false;
+      if (k === (kb.right || 'd').toLowerCase() || k === 'arrowright') keys.d = false;
+      if (!e.shiftKey && (k === (kb.sprint || 'shift').toLowerCase() || kb.sprint === 'shift')) keys.shift = false;
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+
+    // Live Real-Time 3D Avatar Suiting update (When player buys/earns gear while walking online or idle)
+    const handleAvatarUpdatedEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ humanAvatar?: any }>;
+      const updatedConfig = custom.detail?.humanAvatar || (JSON.parse(localStorage.getItem('piso_human_avatar') || 'null'));
+      if (updatedConfig && droneGroup) {
+        if (characterInstance) {
+          droneGroup.remove(characterInstance.rootGroup);
+        }
+        characterInstance = createHumanoidCharacter(updatedConfig);
+        droneGroup.add(characterInstance.rootGroup);
+        droneRing = characterInstance.groundRing;
+        droneGroup.position.y = 0.05;
+      }
+    };
+    window.addEventListener('piso-avatar-updated', handleAvatarUpdatedEvent);
 
     // Pointer Events for Click-to-Move, NPC/District Interaction, and Right-Click Orbit
     const handlePointerDown = (e: MouseEvent) => {
@@ -1582,6 +1651,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     let animationFrameId: number;
     let clock = new THREE.Clock();
     let droneHeading = 0;
+    let miningTimer = 0;
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
@@ -1599,6 +1669,56 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       if (keys.s) moveZ += 1;
       if (keys.a) moveX -= 1;
       if (keys.d) moveX += 1;
+
+      // 0. Auto-Seek & Auto-Mine Nearest Block when E is held
+      let isSeekingBlock = false;
+      if (keys.eHold && activeMiningEngine) {
+        const playerStats = PlayerStatsEngine.getStats();
+        const targetBlock = activeMiningEngine.getNearestAvailableBlock(droneGroup.position, 250, playerStats.level);
+        if (targetBlock) {
+          isSeekingBlock = true;
+          if (targetPos) {
+            targetPos = null;
+            pendingInteractRef.current = null;
+            targetMentorIndex = -1;
+            onCruiseTargetChangeRef.current?.(null);
+          }
+
+          const targetX = targetBlock.mesh.position.x;
+          const targetZ = targetBlock.mesh.position.z;
+          const dx = targetX - droneGroup.position.x;
+          const dz = targetZ - droneGroup.position.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+
+          // Position glowing beacon on target block
+          clickBeacon.position.set(targetX, 0.05, targetZ);
+          (clickBeacon.material as THREE.MeshBasicMaterial).color.setHex(targetBlock.def.color || 0x06B6D4);
+          (clickBeacon.material as THREE.MeshBasicMaterial).opacity = 0.9;
+          clickBeacon.scale.set(1 + Math.sin(time * 10) * 0.25, 1 + Math.sin(time * 10) * 0.25, 1);
+
+          if (dist > 2.8) {
+            // Run straight to the nearest block
+            const step = Math.min(speed * delta, dist);
+            droneGroup.position.x += (dx / dist) * step;
+            droneGroup.position.z += (dz / dist) * step;
+            droneHeading = Math.atan2(dx, -dz) + Math.PI;
+          } else {
+            // Reached mining proximity: mine block with hero axe!
+            const miningResult = activeMiningEngine.mineNearestBlock(droneGroup.position, playerStats.level, 3.5);
+            if (miningResult) {
+              SoundFX.playLaser?.();
+              PlayerStatsEngine.addMiningExp(miningResult.block.type, miningResult.exp);
+              miningTimer = 0.5; // Trigger axe chopping animation
+            }
+          }
+        }
+      }
+
+      if (!isSeekingBlock && !targetPos && !pendingInteractRef.current) {
+        if ((clickBeacon.material as THREE.MeshBasicMaterial).opacity > 0) {
+          (clickBeacon.material as THREE.MeshBasicMaterial).opacity = 0;
+        }
+      }
 
       // 1. Mobile Virtual Touch Joystick Movement (Camera-Relative)
       if (mobileInput.active && mobileInput.intensity > 0.05) {
@@ -1620,8 +1740,8 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
         droneGroup.position.x += moveWorldX * delta;
         droneGroup.position.z += moveWorldZ * delta;
-        // Only update heading — rotation.y is driven by the single lerp below
-        droneHeading = worldAngle;
+        // Face the actual world direction of travel (+ PI to fix inverted mesh facing)
+        droneHeading = worldAngle + Math.PI;
 
       } else if (moveX !== 0 || moveZ !== 0) {
         if (targetPos) {
@@ -1640,8 +1760,8 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           const moveWorldZ = -Math.cos(worldAngle) * speed;
           droneGroup.position.x += moveWorldX * delta;
           droneGroup.position.z += moveWorldZ * delta;
-          // Face the actual world direction of travel (not just the key angle)
-          droneHeading = worldAngle;
+          // Face the actual world direction of travel (+ PI to fix inverted mesh facing)
+          droneHeading = worldAngle + Math.PI;
         } else {
           // World-Axis: translate the raw input into a world movement vector,
           // then derive heading from where we actually moved, not the raw keys.
@@ -1649,8 +1769,8 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           const nz = moveZ / mag;
           droneGroup.position.x += nx * speed * delta;
           droneGroup.position.z += nz * speed * delta;
-          // atan2(x, -z): character faces the direction of movement in world space
-          droneHeading = Math.atan2(nx, -nz);
+          // Calculate heading from actual movement vector (+ PI for mesh alignment)
+          droneHeading = Math.atan2(nx, -nz) + Math.PI;
         }
       } else if (targetPos) {
         const dx = targetPos.x - droneGroup.position.x;
@@ -1756,8 +1876,13 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       }
 
       // Humanoid Walking Rig vs Drone Hover Mechanics with Continuous Terrain Elevation
-      const isMoving = (moveX !== 0 || moveZ !== 0) || targetPos !== null;
+      const isMoving = (moveX !== 0 || moveZ !== 0) || targetPos !== null || isSeekingBlock;
       const isJumping = jumpCount > 0 || jumpOffsetY > 0.04;
+
+      if (miningTimer > 0) {
+        miningTimer -= delta;
+      }
+      const isMining = miningTimer > 0;
 
       if (avatarMode === 'human' && characterInstance) {
         if (isMoving && !isJumping) {
@@ -1770,7 +1895,8 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           time,
           isJumping,
           jumpCount === 2,
-          jumpVelocityY
+          jumpVelocityY,
+          isMining
         );
         const groundY = (isMoving && !isJumping ? 0.05 + Math.abs(Math.sin(humanWalkPhase)) * 0.03 : 0.05) + terrainH;
         droneGroup.position.y = groundY + jumpOffsetY;
@@ -2308,6 +2434,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       window.removeEventListener('piso-cancel-autopilot', handleCancelAutopilot);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('piso-avatar-updated', handleAvatarUpdatedEvent);
       window.removeEventListener('resize', handleResize);
       scene.remove(singleJumpEffect.mesh);
       scene.remove(doubleJumpEffect.mesh);
@@ -2331,7 +2458,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       }
       renderer.dispose();
     };
-  }, [avatarSkin, avatarMode, humanAvatar, controlSettings, playerPosRef]);
+  }, [avatarSkin, avatarMode, humanAvatar, playerPosRef]);
 
   return <div ref={containerRef} className="w-full h-full cursor-crosshair select-none" style={{ touchAction: 'none' }} />;
 };

@@ -188,6 +188,62 @@ export class WalletService {
   }
 
   /**
+   * Connects/imports an existing wallet using either a 12/24-word seed phrase or a raw private key.
+   */
+  static connectExistingWallet(input: string): { address: string; privateKey: string; type: 'mnemonic' | 'privateKey' } {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      throw new Error('Please enter your recovery phrase or private key.');
+    }
+
+    const words = trimmed.split(/\s+/);
+    if (words.length >= 12) {
+      try {
+        const kp = this.importFromMnemonic(trimmed);
+        this.setActiveBurnerWallet(kp.privateKey);
+        this.recordSavedWallet(kp.address, 'Mnemonic Phrase');
+        return { address: kp.address, privateKey: kp.privateKey, type: 'mnemonic' };
+      } catch (err: any) {
+        throw new Error(`Invalid recovery phrase: ${err.message || 'Check your seed words'}`);
+      }
+    }
+
+    try {
+      const kp = this.importFromPrivateKey(trimmed);
+      this.setActiveBurnerWallet(kp.privateKey);
+      this.recordSavedWallet(kp.address, 'Private Key');
+      return { address: kp.address, privateKey: kp.privateKey, type: 'privateKey' };
+    } catch (err: any) {
+      throw new Error('Invalid input. Please provide a 12/24-word recovery phrase or a 64-hex private key.');
+    }
+  }
+
+  /**
+   * Records an active wallet into local saved list for quick switching
+   */
+  static recordSavedWallet(address: string, label: string = 'Saved Wallet'): void {
+    try {
+      const raw = localStorage.getItem('piso_saved_wallets_v1');
+      const list: { address: string; label: string; lastUsed: number }[] = raw ? JSON.parse(raw) : [];
+      const filtered = list.filter((w) => w.address.toLowerCase() !== address.toLowerCase());
+      filtered.unshift({ address, label, lastUsed: Date.now() });
+      localStorage.setItem('piso_saved_wallets_v1', JSON.stringify(filtered.slice(0, 5)));
+    } catch {}
+  }
+
+  /**
+   * Retrieves previously saved/imported wallets
+   */
+  static getSavedWallets(): { address: string; label: string; lastUsed: number }[] {
+    try {
+      const raw = localStorage.getItem('piso_saved_wallets_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Gets on-chain balance from PISO RPC
    */
   static async getBalance(address: string): Promise<string> {

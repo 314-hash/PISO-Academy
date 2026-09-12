@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { useAcademy, NavView } from '../../context/AcademyContext';
+import { useAcademy, NavView, DEFAULT_KEYBINDS } from '../../context/AcademyContext';
 import { Cyber3DWorld, DistrictInfo, NPCLocationInfo, CruiseTargetInfo } from './Cyber3DWorld';
 import { GameTopBar } from './GameTopBar';
 import { GameMinimap } from './GameMinimap';
@@ -8,12 +8,15 @@ import { GameQuestTracker } from './GameQuestTracker';
 import { FloatingGameWindow } from './FloatingGameWindow';
 import { SoundFX } from '../../services/soundFX';
 import { ANIME_SKILLS, AnimeSkillDef } from '../../data/filipinoCultureItems';
+import { MonsterSpawnEngine } from '../../services/MonsterSpawnEngine';
+import { MiningBlockEngine } from '../../services/MiningBlockEngine';
 
 // Modals
 import { GameTutorialModal } from './GameTutorialModal';
 import { GameOptionsModal } from './GameOptionsModal';
 import { NPCMentorModal } from './NPCMentorModal';
 import { AvatarHangarModal } from './AvatarHangarModal';
+import { CharacterCreationModal } from './CharacterCreationModal';
 import { DailyQuestsModal } from './DailyQuestsModal';
 import { Img2ThreejsStudio } from './Img2ThreejsStudio';
 import { WalletStudioTerminalModal } from './WalletStudioTerminalModal';
@@ -26,7 +29,6 @@ import { PISOMetaverseEconomyStudio } from './PISOMetaverseEconomyStudio';
 import { MonsterHunterStudio } from './MonsterHunterStudio';
 import { PISOPvPArenaStudio } from './PISOPvPArenaStudio';
 import { MiningBuildingStudio } from './MiningBuildingStudio';
-import { MiningBlockEngine } from '../../services/MiningBlockEngine';
 
 // Content Views
 import { CourseCatalog } from '../CourseCatalog';
@@ -57,6 +59,7 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
     setShowTutorial,
     claimedMentorRewards,
     controlSettings,
+    humanAvatar,
   } = useAcademy();
 
   const [nearbyDistrict, setNearbyDistrict] = useState<DistrictInfo | null>(null);
@@ -69,11 +72,14 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
   const [showOptions, setShowOptions] = useState<boolean>(false);
   const [showQuests, setShowQuests] = useState<boolean>(false);
   const [showHangar, setShowHangar] = useState<boolean>(false);
+  const [hangarInitialTab, setHangarInitialTab] = useState<'human' | 'pinoy' | 'drone' | 'inventory'>('pinoy');
   const [showWalletTerminal, setShowWalletTerminal] = useState<boolean>(false);
   const [showMiningStudio, setShowMiningStudio] = useState<boolean>(false);
+  const [showCharacterCreation, setShowCharacterCreation] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState(SoundFX.isMuted);
 
   const [miningEngine, setMiningEngine] = useState<MiningBlockEngine | null>(null);
+  const [monsterEngine, setMonsterEngine] = useState<MonsterSpawnEngine | null>(null);
 
   // Mobile / Touch controls state (detected automatically or toggled on demand)
   const [showTouchControls, setShowTouchControls] = useState<boolean>(() => {
@@ -88,6 +94,7 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
   // Screen Minimization & Zen / Cinematic Mode
   const [isCinematicMode, setIsCinematicMode] = useState<boolean>(false);
   const [isSkillsCollapsed, setIsSkillsCollapsed] = useState<boolean>(false);
+  const [isControlsHUDMinimized, setIsControlsHUDMinimized] = useState<boolean>(false);
 
   // Listen for custom event to open wallet studio terminal
   React.useEffect(() => {
@@ -97,11 +104,31 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
     const handleOpenMiningEvent = () => {
       setShowMiningStudio(true);
     };
+    const handleOpenAvatarOptions = () => {
+      setHangarInitialTab('human');
+      setShowHangar(true);
+      SoundFX.playBlip();
+    };
+    const handleOpenInventory = () => {
+      setHangarInitialTab('inventory');
+      setShowHangar(true);
+      SoundFX.playBlip();
+    };
+    const handleOpenCharacterCreation = () => {
+      setShowCharacterCreation(true);
+      SoundFX.playBlip();
+    };
     window.addEventListener('piso-open-wallet-terminal', handleOpenWalletEvent);
     window.addEventListener('piso-open-mining-studio', handleOpenMiningEvent);
+    window.addEventListener('piso-open-avatar-options', handleOpenAvatarOptions);
+    window.addEventListener('piso-open-inventory', handleOpenInventory);
+    window.addEventListener('piso-open-character-creation', handleOpenCharacterCreation);
     return () => {
       window.removeEventListener('piso-open-wallet-terminal', handleOpenWalletEvent);
       window.removeEventListener('piso-open-mining-studio', handleOpenMiningEvent);
+      window.removeEventListener('piso-open-avatar-options', handleOpenAvatarOptions);
+      window.removeEventListener('piso-open-inventory', handleOpenInventory);
+      window.removeEventListener('piso-open-character-creation', handleOpenCharacterCreation);
     };
   }, []);
 
@@ -239,7 +266,16 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
         return;
       }
 
-      if (k === 'z') {
+      const kb = controlSettings.keybinds || DEFAULT_KEYBINDS;
+
+      // Primary Anime Skill: "E" is using a skill (or configured key)
+      if (k === (kb.skillPrimary || 'e').toLowerCase()) {
+        const primaryId = humanAvatar?.equippedPinoyItems?.superpower || 'kamehameha';
+        executeSkill(primaryId);
+        return;
+      }
+
+      if (k === (kb.autoAttack || 'z').toLowerCase()) {
         toggleAutoAttack();
         return;
       }
@@ -268,15 +304,35 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
         return;
       }
 
+      // Check 1-10 skill keys
+      const skillKeyMap: Record<string, string> = {
+        [(kb.skill1 || '1').toLowerCase()]: 'kamehameha',
+        [(kb.skill2 || '2').toLowerCase()]: 'chidori',
+        [(kb.skill3 || '3').toLowerCase()]: 'tsinelas',
+        [(kb.skill4 || '4').toLowerCase()]: 'gear5',
+        [(kb.skill5 || '5').toLowerCase()]: 'rasengan',
+        [(kb.skill6 || '6').toLowerCase()]: 'gatling',
+        [(kb.skill7 || '7').toLowerCase()]: 'lightning_storm',
+        [(kb.skill8 || '8').toLowerCase()]: 'cyclone_spin',
+        [(kb.skill9 || '9').toLowerCase()]: 'hydro_wave',
+        [(kb.skill10 || '0').toLowerCase()]: 'pun',
+      };
+
+      if (skillKeyMap[k]) {
+        executeSkill(skillKeyMap[k]);
+        return;
+      }
+
       const matchSkill = ANIME_SKILLS.find((s) => s.hotkey.toLowerCase() === k);
       if (matchSkill) {
         executeSkill(matchSkill.id);
+        return;
       }
     };
 
     window.addEventListener('keydown', handlePowerHotkeys);
     return () => window.removeEventListener('keydown', handlePowerHotkeys);
-  }, [executeSkill, toggleAutoAttack]);
+  }, [executeSkill, toggleAutoAttack, controlSettings, humanAvatar]);
 
   // Listen for Proof-of-Education Farming Rate Limit Warnings
   React.useEffect(() => {
@@ -393,6 +449,7 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
           onCruiseTargetChange={setCruiseTarget}
           playerPosRef={playerPosRef}
           onMiningEngineReady={(engine) => setMiningEngine(engine)}
+          onMonsterEngineReady={(engine) => setMonsterEngine(engine)}
         />
 
         {/* Zen / Cinematic Mode Floating Restore Button */}
@@ -420,6 +477,7 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
               playerPosRef={playerPosRef}
               onSelectDistrict={handleDistrictSelect}
               cruiseTargetMentorId={cruiseTarget?.id || null}
+              monsterEngine={monsterEngine}
             />
           </div>
         )}
@@ -572,214 +630,262 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
               controlSettings.swapJoystickSide ? 'left-4 items-start' : 'right-4 items-end'
             } z-20 flex flex-col space-y-2 animate-fade-in`}
           >
-            {/* 10 Anime & Filipino Super Power Action Bar with Cooldowns */}
-            {isSkillsCollapsed ? (
+            {isControlsHUDMinimized ? (
+              /* One Single Button when Minimized */
               <button
                 type="button"
                 onClick={() => {
-                  setIsSkillsCollapsed(false);
+                  setIsControlsHUDMinimized(false);
                   SoundFX.playClick();
                 }}
-                className="px-3 py-1.5 rounded-xl bg-[#0B0F17]/95 border border-purple-500/50 text-purple-300 font-mono text-xs font-bold flex items-center space-x-2 shadow-[0_0_20px_rgba(168,85,247,0.3)] backdrop-blur-md active:scale-95 transition"
-                title="Restore 10 Anime Super Powers Action Bar"
+                className="px-3.5 py-2 rounded-2xl bg-[#0B0F17]/95 hover:bg-[#161F30] border border-cyan-500/50 hover:border-amber-400 text-cyan-300 hover:text-white font-mono text-xs font-bold flex items-center space-x-2 shadow-[0_0_25px_rgba(6,182,212,0.35)] backdrop-blur-md active:scale-95 transition-all group"
+                title="Expand Controls, Super Powers & HUD"
               >
-                <span>⚔️</span>
-                <span>SUPER POWERS (10)</span>
-                <span className="text-purple-400 text-[10px]">▲</span>
+                <span className="text-base animate-pulse">⚡</span>
+                <span className="tracking-wide uppercase font-black">Controls & Skills (10)</span>
+                <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-mono group-hover:bg-cyan-500/40">▲ Expand</span>
               </button>
             ) : (
-              <div className="flex items-center space-x-1.5 p-1.5 rounded-2xl bg-[#0B0F17]/95 border border-purple-500/40 shadow-[0_0_30px_rgba(168,85,247,0.35)] backdrop-blur-md max-w-[calc(100vw-2rem)] sm:max-w-[95vw] overflow-x-auto touch-pan-x scrollbar-thin scrollbar-thumb-purple-500/40">
-                {/* Minimize skills button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSkillsCollapsed(true);
-                    SoundFX.playClick();
-                  }}
-                  className="px-1.5 py-1 rounded-lg bg-slate-900/80 hover:bg-purple-600 text-slate-400 hover:text-white border border-slate-700 text-[10px] font-bold transition mr-0.5"
-                  title="Minimize Super Powers Bar"
-                >
-                  _
-                </button>
-
-                {ANIME_SKILLS.map((skill) => {
-                  const cd = skillCooldowns[skill.id];
-                  const remaining = cd?.remaining || 0;
-                  const isCoolingDown = remaining > 0.05;
-                  const pct = cd && cd.total > 0 ? (remaining / cd.total) * 100 : 0;
-
-                  return (
+              <>
+                {/* 10 Anime & Filipino Super Power Action Bar with Cooldowns */}
+                {isSkillsCollapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSkillsCollapsed(false);
+                      SoundFX.playClick();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#0B0F17]/95 border border-purple-500/50 text-purple-300 font-mono text-xs font-bold flex items-center space-x-2 shadow-[0_0_20px_rgba(168,85,247,0.3)] backdrop-blur-md active:scale-95 transition"
+                    title="Restore 10 Anime Super Powers Action Bar"
+                  >
+                    <span>⚔️</span>
+                    <span>SUPER POWERS (10)</span>
+                    <span className="text-purple-400 text-[10px]">▲</span>
+                  </button>
+                ) : (
+                  <div className="flex items-center space-x-1.5 p-1.5 rounded-2xl bg-[#0B0F17]/95 border border-purple-500/40 shadow-[0_0_30px_rgba(168,85,247,0.35)] backdrop-blur-md max-w-[calc(100vw-2rem)] sm:max-w-[95vw] overflow-x-auto touch-pan-x scrollbar-thin scrollbar-thumb-purple-500/40">
+                    {/* Minimize skills button */}
                     <button
-                      key={skill.id}
                       type="button"
-                      onClick={() => executeSkill(skill.id)}
-                      disabled={isCoolingDown}
-                      title={`${skill.name} [Hotkey: ${skill.hotkey}] — ${skill.animeOrigin} (${skill.damage.toLocaleString()} DMG, ${skill.cooldown}s CD) — ${skill.description}`}
-                      className={`relative overflow-hidden group flex flex-col items-center justify-between p-1.5 min-w-[50px] sm:min-w-[62px] h-[54px] sm:h-[58px] rounded-xl border transition-all select-none ${
-                        isCoolingDown
-                          ? 'bg-slate-900/90 border-slate-700/60 opacity-80 cursor-not-allowed'
-                          : 'bg-gradient-to-b from-[#161F30] to-[#0B0F17] hover:scale-105 active:scale-95 hover:border-amber-400'
-                      }`}
-                      style={{
-                        borderColor: !isCoolingDown ? `${skill.color}80` : undefined,
-                        boxShadow: !isCoolingDown ? `0 0 10px ${skill.color}25` : undefined,
+                      onClick={() => {
+                        setIsSkillsCollapsed(true);
+                        SoundFX.playClick();
                       }}
+                      className="px-1.5 py-1 rounded-lg bg-slate-900/80 hover:bg-purple-600 text-slate-400 hover:text-white border border-slate-700 text-[10px] font-bold transition mr-0.5"
+                      title="Minimize Super Powers Bar"
                     >
-                      {/* Cooldown dark sweep overlay */}
-                      {isCoolingDown && (
-                        <div
-                          className="absolute inset-x-0 bottom-0 bg-black/75 transition-all duration-100 ease-linear pointer-events-none"
-                          style={{ height: `${pct}%` }}
-                        />
-                      )}
+                      _
+                    </button>
 
-                      {/* Top: Icon + Hotkey badge */}
-                      <div className="relative z-10 w-full flex items-center justify-between">
-                        <span className="text-base sm:text-lg leading-none">{skill.icon}</span>
-                        <span
-                          className="px-1 py-0.5 rounded text-[9px] font-mono font-black shadow-sm"
+                    {ANIME_SKILLS.map((skill) => {
+                      const cd = skillCooldowns[skill.id];
+                      const remaining = cd?.remaining || 0;
+                      const isCoolingDown = remaining > 0.05;
+                      const pct = cd && cd.total > 0 ? (remaining / cd.total) * 100 : 0;
+
+                      return (
+                        <button
+                          key={skill.id}
+                          type="button"
+                          onClick={() => executeSkill(skill.id)}
+                          disabled={isCoolingDown}
+                          title={`${skill.name} [Hotkey: ${skill.hotkey}] — ${skill.animeOrigin} (${skill.damage.toLocaleString()} DMG, ${skill.cooldown}s CD) — ${skill.description}`}
+                          className={`relative overflow-hidden group flex flex-col items-center justify-between p-1.5 min-w-[50px] sm:min-w-[62px] h-[54px] sm:h-[58px] rounded-xl border transition-all select-none ${
+                            isCoolingDown
+                              ? 'bg-slate-900/90 border-slate-700/60 opacity-80 cursor-not-allowed'
+                              : 'bg-gradient-to-b from-[#161F30] to-[#0B0F17] hover:scale-105 active:scale-95 hover:border-amber-400'
+                          }`}
                           style={{
-                            backgroundColor: !isCoolingDown ? `${skill.color}30` : '#334155',
-                            color: !isCoolingDown ? skill.color : '#94A3B8',
+                            borderColor: !isCoolingDown ? `${skill.color}80` : undefined,
+                            boxShadow: !isCoolingDown ? `0 0 10px ${skill.color}25` : undefined,
                           }}
                         >
-                          {skill.hotkey}
-                        </span>
-                      </div>
+                          {/* Cooldown dark sweep overlay */}
+                          {isCoolingDown && (
+                            <div
+                              className="absolute inset-x-0 bottom-0 bg-black/75 transition-all duration-100 ease-linear pointer-events-none"
+                              style={{ height: `${pct}%` }}
+                            />
+                          )}
 
-                      {/* Center / Countdown text */}
-                      <div className="relative z-10 my-auto text-center">
-                        {isCoolingDown ? (
-                          <span className="text-[11px] font-mono font-black text-amber-300 drop-shadow">
-                            {remaining.toFixed(1)}s
-                          </span>
-                        ) : (
-                          <span className="hidden sm:inline text-[9px] font-bold text-white tracking-tight line-clamp-1">
-                            {skill.name.split(' ')[0]}
-                          </span>
-                        )}
-                      </div>
+                          {/* Top: Icon + Hotkey badge */}
+                          <div className="relative z-10 w-full flex items-center justify-between">
+                            <span className="text-base sm:text-lg leading-none">{skill.icon}</span>
+                            <span
+                              className="px-1 py-0.5 rounded text-[9px] font-mono font-black shadow-sm"
+                              style={{
+                                backgroundColor: !isCoolingDown ? `${skill.color}30` : '#334155',
+                                color: !isCoolingDown ? skill.color : '#94A3B8',
+                              }}
+                            >
+                              {(() => {
+                                const kb = controlSettings.keybinds || DEFAULT_KEYBINDS;
+                                const idMap: Record<string, string | undefined> = {
+                                  kamehameha: kb.skill1,
+                                  chidori: kb.skill2,
+                                  tsinelas: kb.skill3,
+                                  gear5: kb.skill4,
+                                  rasengan: kb.skill5,
+                                  gatling: kb.skill6,
+                                  lightning_storm: kb.skill7,
+                                  cyclone_spin: kb.skill8,
+                                  hydro_wave: kb.skill9,
+                                  pun: kb.skill10,
+                                };
+                                return (idMap[skill.id] || skill.hotkey).toUpperCase();
+                              })()}
+                            </span>
+                          </div>
 
-                      {/* Bottom: Damage Badge */}
-                      <div className="relative z-10 w-full text-center">
-                        <span
-                          className="text-[8px] sm:text-[9px] font-mono font-bold tracking-tight"
-                          style={{ color: skill.color }}
-                        >
-                          {skill.damage >= 1000 ? `${(skill.damage / 1000).toFixed(1)}k` : skill.damage} DMG
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                          {/* Center / Countdown text */}
+                          <div className="relative z-10 my-auto text-center">
+                            {isCoolingDown ? (
+                              <span className="text-[11px] font-mono font-black text-amber-300 drop-shadow">
+                                {remaining.toFixed(1)}s
+                              </span>
+                            ) : (
+                              <span className="hidden sm:inline text-[9px] font-bold text-white tracking-tight line-clamp-1">
+                                {skill.name.split(' ')[0]}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Bottom: Damage Badge */}
+                          <div className="relative z-10 w-full text-center">
+                            <span
+                              className="text-[8px] sm:text-[9px] font-mono font-bold tracking-tight"
+                              style={{ color: skill.color }}
+                            >
+                              {skill.damage >= 1000 ? `${(skill.damage / 1000).toFixed(1)}k` : skill.damage} DMG
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Action Row: Minimize All + Zen Mode + Mobile Controls + Auto Idle Attack + Jump */}
+                <div className="flex items-center space-x-2">
+                  {/* One-Button Minimize Toggle */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsControlsHUDMinimized(true);
+                      SoundFX.playClick();
+                    }}
+                    title="Minimize Controls & Skills HUD into one single button"
+                    className="group flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-md backdrop-blur-md active:scale-95 border bg-[#0B0F17]/90 text-cyan-400 hover:text-cyan-200 border-cyan-500/40 hover:border-cyan-400"
+                  >
+                    <span className="text-cyan-400 font-black text-sm">─</span>
+                    <span>MINIMIZE</span>
+                  </button>
+
+                  {/* Zen / Cinematic Mode Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCinematicMode(true);
+                      SoundFX.playClick();
+                    }}
+                    title="Zen Mode (Hotkey: H) — Minimizes all screen overlays for 100% unobstructed full-screen view"
+                    className="group flex items-center space-x-1 px-2.5 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-md backdrop-blur-md active:scale-95 border bg-[#0B0F17]/90 text-slate-400 hover:text-amber-300 border-slate-700 hover:border-amber-400"
+                  >
+                    <span>👁️</span>
+                    <span>ZEN</span>
+                    <span className="hidden sm:inline-block px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-400 border border-slate-700">
+                      H
+                    </span>
+                  </button>
+
+                  {/* Mobile Touch Controls Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTouchControls((prev) => !prev);
+                      SoundFX.playClick();
+                    }}
+                    title="Toggle Mobile Touch Controls & Virtual Analog Joystick"
+                    className={`group flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-md backdrop-blur-md active:scale-95 border ${
+                      showTouchControls
+                        ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400 shadow-[0_0_18px_rgba(6,182,212,0.4)]'
+                        : 'bg-[#0B0F17]/90 text-slate-400 hover:text-white border-slate-700'
+                    }`}
+                  >
+                    <span>📱</span>
+                    <span>{showTouchControls ? 'TOUCH: ON' : 'TOUCH: OFF'}</span>
+                  </button>
+
+                  {/* Auto Idle Attack Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={toggleAutoAttack}
+                    title="Toggle Auto Idle Attack (Hotkey: Z) — Automatically cycles and casts ready skills in highest-DPS rotation"
+                    className={`group flex items-center space-x-2 px-3.5 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-lg backdrop-blur-md active:scale-95 border ${
+                      isAutoAttack
+                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 border-emerald-300 shadow-[0_0_25px_rgba(160,185,129,0.7)] animate-pulse'
+                        : 'bg-[#0B0F17]/90 hover:bg-emerald-950/40 text-emerald-400 hover:text-emerald-300 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                    }`}
+                  >
+                    <span className={`text-sm ${isAutoAttack ? 'animate-spin' : ''}`}>
+                      {isAutoAttack ? '⚔️' : '🤖'}
+                    </span>
+                    <span className="tracking-wider">
+                      {isAutoAttack ? 'AUTO IDLE: ON' : 'AUTO IDLE: OFF'}
+                    </span>
+                    <span
+                      className={`hidden sm:inline-block px-1.5 py-0.5 rounded text-[9px] font-black border ${
+                        isAutoAttack
+                          ? 'bg-black/30 text-emerald-950 border-emerald-700/50'
+                          : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      }`}
+                    >
+                      Z
+                    </span>
+                  </button>
+
+                  {/* Quick Jump Action Button (Touch & Desktop) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                        try {
+                          navigator.vibrate(15);
+                        } catch {}
+                      }
+                      window.dispatchEvent(new CustomEvent('piso-player-jump'));
+                    }}
+                    title="Jump / Double Jump (Spacebar or Tap)"
+                    className="group flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 border border-amber-500/40 text-amber-300 hover:text-amber-200 font-mono text-xs font-bold transition shadow-[0_0_20px_rgba(245,158,11,0.2)] backdrop-blur-md"
+                  >
+                    <span className="flex items-center space-x-0.5 text-amber-400 font-black">
+                      <span>▲</span>
+                      <span className="text-[10px]">▲</span>
+                    </span>
+                    <span>JUMP / 2X</span>
+                    <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-amber-500/30 text-[10px] text-amber-200 border border-amber-500/40">
+                      SPACE
+                    </span>
+                  </button>
+                </div>
+
+                <div className="hidden md:flex flex-col items-end space-y-1 font-mono text-[10px] text-slate-400 bg-slate-950/70 p-2 rounded-xl border border-slate-800 backdrop-blur-sm">
+                  <span>
+                    <strong className="text-amber-300">👁️ [H] Zen Mode</strong> • <strong className="text-cyan-400">📱 Mobile:</strong> Left Thumb = <strong className="text-cyan-300">Joystick</strong> • 1-Finger Drag = <strong className="text-cyan-300">Orbit</strong> • 2-Finger = <strong className="text-cyan-300">Zoom</strong>
+                  </span>
+                  <span>
+                    <strong className="text-emerald-400">[Z] Auto Attack</strong> • <strong className="text-amber-300">[R] Kamehame</strong> • <strong className="text-purple-300">[T] Chidori</strong> • <strong className="text-cyan-300">[Y] Tsinelas</strong> • <strong className="text-yellow-300">[G] Gear 5</strong> • <strong className="text-sky-300">[F] Rasengan</strong> • <strong className="text-orange-300">[E] Gatling</strong> • <strong className="text-amber-400">[Q] Storm</strong> • <strong className="text-emerald-300">[V] Cyclone</strong> • <strong className="text-cyan-400">[B] Hydro</strong> • <strong className="text-rose-300">[X] Banat</strong>
+                  </span>
+                  <span>Move: <strong className="text-white">WASD / Arrows / Touch Joystick</strong></span>
+                  <span>Jump / Double Jump: <strong className="text-amber-400">Space [2x] / Jump Button</strong></span>
+                  <span>Wallet & Farm: <strong className="text-amber-400">[K]</strong> • 70M Bounties: <strong className="text-rose-400">[J]</strong> • PvP Arena: <strong className="text-red-400">[U]</strong></span>
+                  <span>Next Mentor: <strong className="text-purple-400">[N]</strong> Autopilot • Live Chat: <strong className="text-purple-400">[C]</strong></span>
+                  <span>Cam Orbit: <strong className="text-cyan-400">Right-Click Drag / 1-Finger Drag</strong></span>
+                  <span>Zoom: <strong className="text-cyan-400">Mouse Wheel / Pinch</strong></span>
+                  <span>Interact / Next Dest: <strong className="text-amber-400">[E]</strong> / Click</span>
+                </div>
+              </>
             )}
-
-            {/* Action Row: Mobile Controls + Auto Idle Attack + Zen Mode + Jump */}
-            <div className="flex items-center space-x-2">
-              {/* Zen / Cinematic Mode Toggle Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCinematicMode(true);
-                  SoundFX.playClick();
-                }}
-                title="Zen Mode (Hotkey: H) — Minimizes all screen overlays for 100% unobstructed full-screen view"
-                className="group flex items-center space-x-1 px-2.5 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-md backdrop-blur-md active:scale-95 border bg-[#0B0F17]/90 text-slate-400 hover:text-amber-300 border-slate-700 hover:border-amber-400"
-              >
-                <span>👁️</span>
-                <span>ZEN</span>
-                <span className="hidden sm:inline-block px-1 py-0.2 rounded bg-slate-800 text-[9px] text-slate-400 border border-slate-700">
-                  H
-                </span>
-              </button>
-
-              {/* Mobile Touch Controls Toggle Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTouchControls((prev) => !prev);
-                  SoundFX.playClick();
-                }}
-                title="Toggle Mobile Touch Controls & Virtual Analog Joystick"
-                className={`group flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-md backdrop-blur-md active:scale-95 border ${
-                  showTouchControls
-                    ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400 shadow-[0_0_18px_rgba(6,182,212,0.4)]'
-                    : 'bg-[#0B0F17]/90 text-slate-400 hover:text-white border-slate-700'
-                }`}
-              >
-                <span>📱</span>
-                <span>{showTouchControls ? 'TOUCH: ON' : 'TOUCH: OFF'}</span>
-              </button>
-
-              {/* Auto Idle Attack Toggle Button */}
-              <button
-                type="button"
-                onClick={toggleAutoAttack}
-                title="Toggle Auto Idle Attack (Hotkey: Z) — Automatically cycles and casts ready skills in highest-DPS rotation"
-                className={`group flex items-center space-x-2 px-3.5 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-lg backdrop-blur-md active:scale-95 border ${
-                  isAutoAttack
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 border-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.7)] animate-pulse'
-                    : 'bg-[#0B0F17]/90 hover:bg-emerald-950/40 text-emerald-400 hover:text-emerald-300 border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-                }`}
-              >
-                <span className={`text-sm ${isAutoAttack ? 'animate-spin' : ''}`}>
-                  {isAutoAttack ? '⚔️' : '🤖'}
-                </span>
-                <span className="tracking-wider">
-                  {isAutoAttack ? 'AUTO IDLE: ON' : 'AUTO IDLE: OFF'}
-                </span>
-                <span
-                  className={`hidden sm:inline-block px-1.5 py-0.5 rounded text-[9px] font-black border ${
-                    isAutoAttack
-                      ? 'bg-black/30 text-emerald-950 border-emerald-700/50'
-                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                  }`}
-                >
-                  Z
-                </span>
-              </button>
-
-              {/* Quick Jump Action Button (Touch & Desktop) */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-                    try {
-                      navigator.vibrate(15);
-                    } catch {}
-                  }
-                  window.dispatchEvent(new CustomEvent('piso-player-jump'));
-                }}
-                title="Jump / Double Jump (Spacebar or Tap)"
-                className="group flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 border border-amber-500/40 text-amber-300 hover:text-amber-200 font-mono text-xs font-bold transition shadow-[0_0_20px_rgba(245,158,11,0.2)] backdrop-blur-md"
-              >
-                <span className="flex items-center space-x-0.5 text-amber-400 font-black">
-                  <span>▲</span>
-                  <span className="text-[10px]">▲</span>
-                </span>
-                <span>JUMP / 2X</span>
-                <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-amber-500/30 text-[10px] text-amber-200 border border-amber-500/40">
-                  SPACE
-                </span>
-              </button>
-            </div>
-
-            <div className="hidden md:flex flex-col items-end space-y-1 font-mono text-[10px] text-slate-400 bg-slate-950/70 p-2 rounded-xl border border-slate-800 backdrop-blur-sm">
-              <span>
-                <strong className="text-amber-300">👁️ [H] Zen Mode</strong> • <strong className="text-cyan-400">📱 Mobile:</strong> Left Thumb = <strong className="text-cyan-300">Joystick</strong> • 1-Finger Drag = <strong className="text-cyan-300">Orbit</strong> • 2-Finger = <strong className="text-cyan-300">Zoom</strong>
-              </span>
-              <span>
-                <strong className="text-emerald-400">[Z] Auto Attack</strong> • <strong className="text-amber-300">[R] Kamehame</strong> • <strong className="text-purple-300">[T] Chidori</strong> • <strong className="text-cyan-300">[Y] Tsinelas</strong> • <strong className="text-yellow-300">[G] Gear 5</strong> • <strong className="text-sky-300">[F] Rasengan</strong> • <strong className="text-orange-300">[E] Gatling</strong> • <strong className="text-amber-400">[Q] Storm</strong> • <strong className="text-emerald-300">[V] Cyclone</strong> • <strong className="text-cyan-400">[B] Hydro</strong> • <strong className="text-rose-300">[X] Banat</strong>
-              </span>
-              <span>Move: <strong className="text-white">WASD / Arrows / Touch Joystick</strong></span>
-              <span>Jump / Double Jump: <strong className="text-amber-400">Space [2x] / Jump Button</strong></span>
-              <span>Wallet & Farm: <strong className="text-amber-400">[K]</strong> • 70M Bounties: <strong className="text-rose-400">[J]</strong> • PvP Arena: <strong className="text-red-400">[U]</strong></span>
-              <span>Next Mentor: <strong className="text-purple-400">[N]</strong> Autopilot • Live Chat: <strong className="text-purple-400">[C]</strong></span>
-              <span>Cam Orbit: <strong className="text-cyan-400">Right-Click Drag / 1-Finger Drag</strong></span>
-              <span>Zoom: <strong className="text-cyan-400">Mouse Wheel / Pinch</strong></span>
-              <span>Interact / Next Dest: <strong className="text-amber-400">[E]</strong> / Click</span>
-            </div>
           </div>
         )}
       </div>
@@ -860,7 +966,7 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
 
       {/* 13. Drone Hangar Modal */}
       {showHangar && (
-        <AvatarHangarModal onClose={() => setShowHangar(false)} />
+        <AvatarHangarModal initialTab={hangarInitialTab} onClose={() => setShowHangar(false)} />
       )}
 
       {/* 14. Interactive Wallet Studio Sandbox Terminal */}
@@ -878,6 +984,12 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
           miningEngine={miningEngine}
         />
       )}
+
+      {/* 16. Character Creation & Avatar NFT Minting Modal */}
+      <CharacterCreationModal
+        isOpen={showCharacterCreation}
+        onClose={() => setShowCharacterCreation(false)}
+      />
     </div>
   );
 };
