@@ -17,6 +17,7 @@ import { DailyQuestsModal } from './DailyQuestsModal';
 import { Img2ThreejsStudio } from './Img2ThreejsStudio';
 import { WalletStudioTerminalModal } from './WalletStudioTerminalModal';
 import { PisoP2PChatRoom } from './PisoP2PChatRoom';
+import { LiveHUDChatBox } from './LiveHUDChatBox';
 
 // Content Views
 import { CourseCatalog } from '../CourseCatalog';
@@ -284,7 +285,12 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
           </>
         )}
 
-        {/* 6. On-Screen Navigation Controls Reminder & Quick Jump Action */}
+        {/* 6. Live Gun.js P2P On-Screen Chatbox with 3D Avatar Sync */}
+        {!activeWindow && (
+          <LiveHUDChatBox onOpenFullChat={() => setActiveWindow('chat')} />
+        )}
+
+        {/* 7. On-Screen Navigation Controls Reminder & Quick Jump Action */}
         <div className="absolute bottom-24 right-4 z-20 flex flex-col items-end space-y-2">
           {/* Quick Jump Action Button (Touch & Desktop) */}
           <button
@@ -306,6 +312,7 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
           <div className="hidden md:flex flex-col items-end space-y-1 font-mono text-[10px] text-slate-400 bg-slate-950/70 p-2 rounded-xl border border-slate-800 backdrop-blur-sm">
             <span>Move: <strong className="text-white">WASD / Arrows</strong></span>
             <span>Jump / Double Jump: <strong className="text-amber-400">Space [2x]</strong></span>
+            <span>Live Chat: <strong className="text-purple-400">[C] / Enter</strong></span>
             <span>Turbo: <strong className="text-amber-400">Shift</strong></span>
             <span>Wallet Studio: <strong className="text-amber-400">[K] / [W]</strong> Terminal</span>
             <span>Next Mentor: <strong className="text-purple-400">[N]</strong> Autopilot</span>

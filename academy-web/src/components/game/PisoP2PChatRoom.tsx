@@ -125,6 +125,16 @@ export const PisoP2PChatRoom: React.FC<PisoP2PChatRoomProps> = () => {
       text: clean,
     });
 
+    window.dispatchEvent(
+      new CustomEvent('piso-avatar-chat', {
+        detail: {
+          sender: userAlias,
+          text: clean,
+          isValidator,
+        },
+      })
+    );
+
     setInputText('');
   };
 

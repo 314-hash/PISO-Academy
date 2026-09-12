@@ -496,6 +496,83 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     scene.add(droneGroup);
 
+    // 8C. Holographic Live 3D Chat Speech Bubble above Avatar
+    let speechBubbleTimer = 0;
+    const speechCanvas = document.createElement('canvas');
+    speechCanvas.width = 512;
+    speechCanvas.height = 160;
+    const speechCtx = speechCanvas.getContext('2d');
+    const speechTexture = new THREE.CanvasTexture(speechCanvas);
+    speechTexture.minFilter = THREE.LinearFilter;
+    const speechMat = new THREE.SpriteMaterial({
+      map: speechTexture,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0,
+    });
+    const speechBubbleSprite = new THREE.Sprite(speechMat);
+    speechBubbleSprite.scale.set(5.2, 1.6, 1);
+    speechBubbleSprite.position.set(0, avatarMode === 'human' ? 3.4 : 2.6, 0);
+    droneGroup.add(speechBubbleSprite);
+
+    const showAvatarSpeechBubble = (sender: string, text: string, isValidator: boolean) => {
+      if (!speechCtx) return;
+      speechCtx.clearRect(0, 0, 512, 160);
+
+      // Cyber chat bubble box
+      speechCtx.fillStyle = 'rgba(11, 15, 23, 0.94)';
+      speechCtx.strokeStyle = isValidator ? '#A855F7' : '#F59E0B';
+      speechCtx.lineWidth = 4;
+      speechCtx.beginPath();
+      speechCtx.roundRect(12, 12, 488, 120, 22);
+      speechCtx.fill();
+      speechCtx.stroke();
+
+      // Top glowing indicator strip
+      speechCtx.fillStyle = isValidator ? '#A855F7' : '#F59E0B';
+      speechCtx.beginPath();
+      speechCtx.roundRect(40, 12, 432, 5, 2);
+      speechCtx.fill();
+
+      // Pointer triangle at bottom
+      speechCtx.beginPath();
+      speechCtx.moveTo(246, 132);
+      speechCtx.lineTo(256, 150);
+      speechCtx.lineTo(266, 132);
+      speechCtx.fillStyle = 'rgba(11, 15, 23, 0.94)';
+      speechCtx.fill();
+      speechCtx.strokeStyle = isValidator ? '#A855F7' : '#F59E0B';
+      speechCtx.stroke();
+
+      // Sender tag
+      speechCtx.fillStyle = isValidator ? '#C084FC' : '#FBBF24';
+      speechCtx.font = 'bold 20px monospace';
+      speechCtx.textAlign = 'center';
+      speechCtx.fillText(`${isValidator ? '🛡️ ' : '⚡ '}${sender.toUpperCase()}`, 256, 44);
+
+      // Message text
+      speechCtx.fillStyle = '#FFFFFF';
+      speechCtx.font = 'bold 24px monospace';
+      const displayText = text.length > 34 ? text.slice(0, 31) + '...' : text;
+      speechCtx.fillText(displayText, 256, 88);
+
+      speechTexture.needsUpdate = true;
+      speechMat.opacity = 1;
+      speechBubbleTimer = 7.0; // Stay visible for 7 seconds
+    };
+
+    const handleAvatarChatEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ sender: string; text: string; isValidator?: boolean }>;
+      if (customEvent.detail) {
+        showAvatarSpeechBubble(
+          customEvent.detail.sender,
+          customEvent.detail.text,
+          !!customEvent.detail.isValidator
+        );
+      }
+    };
+    window.addEventListener('piso-avatar-chat', handleAvatarChatEvent);
+
     // 9. Click-to-Fly Target Beacon (Pulsing Ground Ring)
     const clickTargetGeo = new THREE.RingGeometry(0.6, 0.85, 32);
     const clickTargetMat = new THREE.MeshBasicMaterial({
@@ -1034,6 +1111,18 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         }
       });
 
+      // Update 3D Speech Bubble Fade
+      if (speechBubbleTimer > 0) {
+        speechBubbleTimer -= delta;
+        if (speechBubbleTimer < 1.0) {
+          speechMat.opacity = Math.max(0, speechBubbleTimer);
+        } else {
+          speechMat.opacity = 1;
+        }
+      } else {
+        speechMat.opacity = 0;
+      }
+
       // Humanoid Walking Rig vs Drone Hover Mechanics
       const isMoving = (moveX !== 0 || moveZ !== 0) || targetPos !== null;
       const isJumping = jumpCount > 0 || jumpOffsetY > 0.04;
@@ -1175,6 +1264,10 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     return () => {
       cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('piso-avatar-chat', handleAvatarChatEvent);
+      droneGroup.remove(speechBubbleSprite);
+      speechTexture.dispose();
+      speechMat.dispose();
       window.removeEventListener('piso-player-jump', handlePlayerJumpEvent);
       window.removeEventListener('piso-navigate-to-mentor', handleNavigateToMentorEvent);
       window.removeEventListener('piso-cycle-next-mentor', handleCycleNextMentorEvent);
