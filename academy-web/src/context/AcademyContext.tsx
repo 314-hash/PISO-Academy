@@ -6,6 +6,7 @@ import { CertificateService, VerifiedCertificate } from '../services/certificate
 import { ContractDeployer, DeploymentReceipt } from '../services/contractDeployer';
 import { PlayerStatsEngine } from '../services/PlayerStatsEngine';
 import { PlayerProgressionEngine } from '../services/playerProgressionEngine';
+import { GlbAvatarMetadata } from '../services/GlbAvatarService';
 
 export type NavView = 'home' | 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'img2threejs' | 'worldmap' | 'chat' | 'ppfstudio' | 'worldgen' | 'economy' | 'bounties' | 'pvp';
 
@@ -65,6 +66,8 @@ export interface HumanAvatarConfig {
   aiPrompt?: string;
   auraColor?: string;
   bodyType?: 'athletic' | 'cybernetic' | 'slim';
+  customGlbId?: string;
+  customGlbName?: string;
   petDrone?: PetDroneConfig;
   equippedPinoyItems?: {
     weapon?: string;
@@ -280,8 +283,11 @@ interface AcademyContextType {
   // New Game-Fi additions
   avatarSkin: AvatarSkinId;
   setAvatarSkin: (skin: AvatarSkinId) => void;
-  avatarMode: 'human' | 'drone';
-  setAvatarMode: (mode: 'human' | 'drone') => void;
+  avatarMode: 'human' | 'drone' | 'custom_glb';
+  setAvatarMode: (mode: 'human' | 'drone' | 'custom_glb') => void;
+  customGlbAvatar: GlbAvatarMetadata | null;
+  setCustomGlbAvatar: (meta: GlbAvatarMetadata | null) => void;
+  equipGlbAvatar: (meta: GlbAvatarMetadata) => void;
   humanAvatar: HumanAvatarConfig;
   setHumanAvatar: (cfg: HumanAvatarConfig) => void;
   avatarNft: AvatarNftData;
@@ -420,12 +426,36 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   // New Avatar & Gameplay State
-  const [avatarMode, setAvatarModeState] = useState<'human' | 'drone'>(() => {
-    return (localStorage.getItem('piso_avatar_mode') as 'human' | 'drone') || 'human';
+  const [avatarMode, setAvatarModeState] = useState<'human' | 'drone' | 'custom_glb'>(() => {
+    return (localStorage.getItem('piso_avatar_mode') as 'human' | 'drone' | 'custom_glb') || 'human';
   });
-  const setAvatarMode = (mode: 'human' | 'drone') => {
+  const setAvatarMode = (mode: 'human' | 'drone' | 'custom_glb') => {
     setAvatarModeState(mode);
     localStorage.setItem('piso_avatar_mode', mode);
+  };
+
+  const [customGlbAvatar, setCustomGlbAvatarState] = useState<GlbAvatarMetadata | null>(() => {
+    try {
+      const raw = localStorage.getItem('active_custom_glb_avatar_meta');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const setCustomGlbAvatar = (meta: GlbAvatarMetadata | null) => {
+    setCustomGlbAvatarState(meta);
+    if (meta) {
+      localStorage.setItem('active_custom_glb_avatar_meta', JSON.stringify(meta));
+    } else {
+      localStorage.removeItem('active_custom_glb_avatar_meta');
+    }
+  };
+
+  const equipGlbAvatar = (meta: GlbAvatarMetadata) => {
+    setCustomGlbAvatar(meta);
+    setAvatarMode('custom_glb');
+    window.dispatchEvent(new CustomEvent('piso-glb-avatar-updated', { detail: { metadata: meta } }));
   };
 
   const [avatarSkin, setAvatarSkinState] = useState<AvatarSkinId>(() => {
@@ -1010,6 +1040,9 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setAvatarSkin,
         avatarMode,
         setAvatarMode,
+        customGlbAvatar,
+        setCustomGlbAvatar,
+        equipGlbAvatar,
         humanAvatar,
         setHumanAvatar,
         avatarNft,

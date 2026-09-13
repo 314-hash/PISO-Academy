@@ -7,6 +7,7 @@ import {
   createPetDroneCompanion,
   PetDroneInstance,
 } from './CharacterMeshBuilder';
+import { GlbAvatarStudioTab } from './GlbAvatarStudioTab';
 import {
   Rocket,
   User,
@@ -38,6 +39,7 @@ import {
   Flame,
   AlertCircle,
   CheckCircle2,
+  Bot,
 } from 'lucide-react';
 import {
   FILIPINO_ITEMS,
@@ -465,7 +467,7 @@ const HumanoidPreviewCanvas: React.FC<HumanoidPreviewCanvasProps> = ({ config, i
 
 interface AvatarHangarModalProps {
   onClose: () => void;
-  initialTab?: 'human' | 'pinoy' | 'drone' | 'inventory';
+  initialTab?: 'human' | 'pinoy' | 'drone' | 'inventory' | 'glb';
 }
 
 export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose, initialTab = 'pinoy' }) => {
@@ -482,7 +484,7 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose, i
     wallet,
   } = useAcademy();
 
-  const [activeTab, setActiveTab] = useState<'human' | 'pinoy' | 'drone' | 'inventory'>(initialTab || 'pinoy');
+  const [activeTab, setActiveTab] = useState<'human' | 'pinoy' | 'drone' | 'inventory' | 'glb'>(initialTab || 'pinoy');
   const [inventorySubTab, setInventorySubTab] = useState<'gear' | 'bidding' | 'elements'>('gear');
   const [inventoryFilter, setInventoryFilter] = useState<'all' | 'weapons' | 'relics' | 'blocks'>('all');
   const [rarityFilter, setRarityFilter] = useState<'all' | ItemRarity>('all');
@@ -1066,7 +1068,9 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose, i
           <div className="flex items-center space-x-2 text-slate-300">
             <span className="text-amber-400 font-bold">AKTIbong Anyo sa 3D Metaverse:</span>
             <span className="text-white font-bold">
-              {avatarMode === 'human'
+              {avatarMode === 'custom_glb'
+                ? `🤖 Custom 3D .GLB Model (Imported)`
+                : avatarMode === 'human'
                 ? `👤 ${localHuman?.name || 'Humanoid Builder'} (Full-Body Walking)`
                 : `🛸 ${avatarSkin.toUpperCase()} Recon Drone (Hover Flight)`}
             </span>
@@ -1087,6 +1091,22 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose, i
             >
               <span>👤 Full-Body Humanoid (Walking)</span>
               {avatarMode === 'human' && <Check className="w-3 h-3 text-amber-400" />}
+            </button>
+
+            <button
+              onClick={() => {
+                SoundFX.playClick();
+                setAvatarMode('custom_glb');
+                setNotification({ message: '🤖 Activated 3D .GLB Avatar Model!', type: 'info' });
+              }}
+              className={`px-3 py-1 rounded-lg border flex items-center space-x-1.5 transition-all text-xs ${
+                avatarMode === 'custom_glb'
+                  ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold shadow-[0_0_12px_rgba(6,182,212,0.25)]'
+                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <span>🤖 3D .GLB Model</span>
+              {avatarMode === 'custom_glb' && <Check className="w-3 h-3 text-cyan-400" />}
             </button>
 
             <button
@@ -1154,7 +1174,25 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose, i
             }`}
           >
             <User className="w-4 h-4" />
-            <span>👤 AI Humanoid Avatar & Upload</span>
+            <span>👤 AI Humanoid Avatar</span>
+          </button>
+
+          <button
+            onClick={() => {
+              SoundFX.playClick();
+              setActiveTab('glb');
+            }}
+            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-mono font-bold transition-all border-b-2 ${
+              activeTab === 'glb'
+                ? 'border-cyan-400 text-cyan-400 bg-cyan-400/10'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Bot className="w-4 h-4 text-cyan-400" />
+            <span>🤖 3D AI Model (.GLB)</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-black border border-cyan-500/40">
+              RPM / Meshy / Tripo
+            </span>
           </button>
 
           <button
@@ -3042,6 +3080,13 @@ export const AvatarHangarModal: React.FC<AvatarHangarModalProps> = ({ onClose, i
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* 5. 3D .GLB Avatar Loader Studio Tab */}
+        {activeTab === 'glb' && (
+          <div className="p-6 overflow-y-auto max-h-[72vh]">
+            <GlbAvatarStudioTab />
           </div>
         )}
 

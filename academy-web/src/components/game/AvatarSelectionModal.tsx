@@ -275,6 +275,37 @@ export const AvatarSelectionModal: React.FC<AvatarSelectionModalProps> = ({
             </div>
           </div>
 
+          {/* Custom 3D .GLB Drag-and-Drop Callout */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-cyan-950/60 via-slate-900 to-blue-950/60 border border-cyan-500/40 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-xl shadow-md text-slate-950">
+                🤖
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-white">May sarili kang 3D .GLB Model?</span>
+                  <span className="px-2 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold border border-cyan-500/30">
+                    RPM • MESHY • TRIPO
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 font-mono">
+                  I-drag & drop ang iyong na-export na 3D avatar para magamit nang live sa metaverse.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                window.dispatchEvent(new CustomEvent('piso-open-glb-studio'));
+              }}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs font-mono transition-all shadow-md active:scale-95"
+            >
+              BUKSAN ANG 3D .GLB STUDIO →
+            </button>
+          </div>
+
           {/* 2. Archetype Grid Selection */}
           <div>
             <div className="flex items-center justify-between mb-3">

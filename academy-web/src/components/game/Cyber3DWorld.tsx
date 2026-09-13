@@ -8,6 +8,7 @@ import {
   CharacterMeshInstance,
   PetDroneInstance,
 } from './CharacterMeshBuilder';
+import { GlbAvatarService, glbStorage, GlbAvatarMetadata } from '../../services/GlbAvatarService';
 import { FILIPINO_PUNS, ANIME_SKILLS, AnimeSkillDef } from '../../data/filipinoCultureItems';
 import {
   PpfClothInstance,
@@ -512,14 +513,39 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     const droneGroup = new THREE.Group();
     const spawnX = typeof playerPosRef.current?.x === 'number' ? playerPosRef.current.x : 0;
     const spawnZ = typeof playerPosRef.current?.z === 'number' ? playerPosRef.current.z : 8;
-    droneGroup.position.set(spawnX, avatarMode === 'human' ? 0.05 : 1.4, spawnZ);
+    droneGroup.position.set(spawnX, avatarMode === 'human' || avatarMode === 'custom_glb' ? 0.05 : 1.4, spawnZ);
 
     let droneRing: THREE.Mesh | null = null;
     let characterInstance: CharacterMeshInstance | null = null;
     let petDroneInstance: PetDroneInstance | null = null;
     let humanWalkPhase = 0;
 
-    if (avatarMode === 'human') {
+    if (avatarMode === 'custom_glb') {
+      // 8-GLB. Custom 3D .GLB Model (Ready Player Me / Meshy / Tripo / Custom)
+      glbStorage.getActiveGlb().then((stored) => {
+        if (stored) {
+          GlbAvatarService.loadFromBuffer(stored.data, stored.metadata.name, stored.metadata.source)
+            .then((res) => {
+              if (characterInstance) {
+                droneGroup.remove(characterInstance.rootGroup);
+              }
+              characterInstance = res.instance;
+              droneGroup.add(characterInstance.rootGroup);
+              droneRing = characterInstance.groundRing;
+            })
+            .catch((err) => {
+              console.warn('Failed to load active custom GLB avatar, falling back to procedural:', err);
+              characterInstance = createHumanoidCharacter(humanAvatar);
+              droneGroup.add(characterInstance.rootGroup);
+              droneRing = characterInstance.groundRing;
+            });
+        } else {
+          characterInstance = createHumanoidCharacter(humanAvatar);
+          droneGroup.add(characterInstance.rootGroup);
+          droneRing = characterInstance.groundRing;
+        }
+      });
+    } else if (avatarMode === 'human') {
       // 8A. Procedural Full-Body 3D Character (PISO Chain Founder Datu Sovereign / Custom Avatar)
       characterInstance = createHumanoidCharacter(humanAvatar);
       droneGroup.add(characterInstance.rootGroup);
@@ -604,7 +630,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     ppfCape.pinVertex(1);
     ppfCape.pinVertex(9);
     ppfCape.pinVertex(10);
-    ppfCape.mesh.position.set(0, avatarMode === 'human' ? 1.6 : 0.8, -0.2);
+    ppfCape.mesh.position.set(0, avatarMode === 'human' || avatarMode === 'custom_glb' ? 1.6 : 0.8, -0.2);
     droneGroup.add(ppfCape.mesh);
 
     const avatarBodyCollider: SphereCollider = {
@@ -649,8 +675,28 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     });
     const speechBubbleSprite = new THREE.Sprite(speechMat);
     speechBubbleSprite.scale.set(5.2, 1.6, 1);
-    speechBubbleSprite.position.set(0, avatarMode === 'human' ? 3.4 : 2.6, 0);
+    speechBubbleSprite.position.set(0, avatarMode === 'human' || avatarMode === 'custom_glb' ? 3.4 : 2.6, 0);
     droneGroup.add(speechBubbleSprite);
+
+    // Live listener for real-time GLB avatar equip/update without page reload
+    const handleGlbAvatarUpdatedEvent = async () => {
+      try {
+        const stored = await glbStorage.getActiveGlb();
+        if (stored) {
+          const res = await GlbAvatarService.loadFromBuffer(stored.data, stored.metadata.name, stored.metadata.source);
+          if (characterInstance) {
+            droneGroup.remove(characterInstance.rootGroup);
+          }
+          characterInstance = res.instance;
+          droneGroup.add(characterInstance.rootGroup);
+          droneRing = characterInstance.groundRing;
+          droneGroup.position.y = 0.05;
+        }
+      } catch (err) {
+        console.warn('Failed to live-swap custom GLB avatar:', err);
+      }
+    };
+    window.addEventListener('piso-glb-avatar-updated', handleGlbAvatarUpdatedEvent);
 
     const showAvatarSpeechBubble = (sender: string, text: string, isValidator: boolean) => {
       if (!speechCtx) return;
@@ -2588,6 +2634,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('piso-avatar-updated', handleAvatarUpdatedEvent);
+      window.removeEventListener('piso-glb-avatar-updated', handleGlbAvatarUpdatedEvent);
       window.removeEventListener('resize', handleResize);
       scene.remove(singleJumpEffect.mesh);
       scene.remove(doubleJumpEffect.mesh);

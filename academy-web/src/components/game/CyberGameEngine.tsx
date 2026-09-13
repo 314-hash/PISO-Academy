@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useAcademy, NavView, DEFAULT_KEYBINDS } from '../../context/AcademyContext';
 import { Cyber3DWorld, DistrictInfo, NPCLocationInfo, CruiseTargetInfo } from './Cyber3DWorld';
 import { GameTopBar } from './GameTopBar';
@@ -85,8 +85,17 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
   const [showOptions, setShowOptions] = useState<boolean>(false);
   const [showQuests, setShowQuests] = useState<boolean>(false);
   const [showHangar, setShowHangar] = useState<boolean>(false);
-  const [hangarInitialTab, setHangarInitialTab] = useState<'human' | 'pinoy' | 'drone' | 'inventory'>('pinoy');
+  const [hangarInitialTab, setHangarInitialTab] = useState<'human' | 'pinoy' | 'drone' | 'inventory' | 'glb'>('pinoy');
   const [showWalletTerminal, setShowWalletTerminal] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleOpenGlbStudio = () => {
+      setHangarInitialTab('glb');
+      setShowHangar(true);
+    };
+    window.addEventListener('piso-open-glb-studio', handleOpenGlbStudio);
+    return () => window.removeEventListener('piso-open-glb-studio', handleOpenGlbStudio);
+  }, []);
   const [showMiningStudio, setShowMiningStudio] = useState<boolean>(false);
   const [showCharacterCreation, setShowCharacterCreation] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);

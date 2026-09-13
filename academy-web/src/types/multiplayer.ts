@@ -39,7 +39,7 @@ export interface RemotePlayerState {
   username: string;
   walletAddress?: string | null;
   isGuest: boolean;
-  avatarMode: 'human' | 'drone';
+  avatarMode: 'human' | 'drone' | 'custom_glb';
   avatarSkin: AvatarSkinId;
   humanAvatar: HumanAvatarConfig;
   playerClass: PlayerClassId;
