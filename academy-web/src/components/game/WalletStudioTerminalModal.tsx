@@ -51,9 +51,11 @@ export const WalletStudioTerminalModal: React.FC<WalletStudioTerminalModalProps>
     setNotification,
   } = useAcademy();
 
-  const [activeTab, setActiveTab] = useState<'forge' | 'bridge' | 'listener'>('forge');
+  const [activeTab, setActiveTab] = useState<'device_wallet' | 'bridge' | 'listener' | 'forge'>('device_wallet');
+  const [showDevicePrivateKey, setShowDevicePrivateKey] = useState<boolean>(false);
+  const [showSecurityWarning, setShowSecurityWarning] = useState<boolean>(false);
 
-  // Tab 1: Forge
+  // Tab 4: Experimental BIP-39 Sandbox
   const [wordCount, setWordCount] = useState<12 | 24>(12);
   const [generatedKeypair, setGeneratedKeypair] = useState<MnemonicKeypair | null>(null);
   const [showMnemonic, setShowMnemonic] = useState(true);
@@ -83,15 +85,34 @@ export const WalletStudioTerminalModal: React.FC<WalletStudioTerminalModalProps>
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Initial keypair generation on first open if empty
+  // Load diagnostics and live balances on open (STRICTLY PRESERVE per-device wallet, never generate new)
   useEffect(() => {
-    if (isOpen && !generatedKeypair) {
-      handleGenerateKeypair(12);
-    }
     if (isOpen) {
+      setShowDevicePrivateKey(false);
+      setShowSecurityWarning(false);
       fetchDiagnosticsAndBalances();
     }
   }, [isOpen]);
+
+  const toggleDevicePrivateKey = () => {
+    if (!showDevicePrivateKey) {
+      setShowSecurityWarning(true);
+    } else {
+      setShowDevicePrivateKey(false);
+    }
+  };
+
+  const confirmRevealPrivateKey = () => {
+    setShowDevicePrivateKey(true);
+    setShowSecurityWarning(false);
+    try {
+      SoundFX.playBlip();
+    } catch {}
+    // Auto-mask after 30 seconds for shoulder-surfing safety
+    setTimeout(() => {
+      setShowDevicePrivateKey(false);
+    }, 30000);
+  };
 
   const copyToClipboard = (text: string, fieldId: string) => {
     navigator.clipboard.writeText(text);
@@ -205,13 +226,14 @@ export const WalletStudioTerminalModal: React.FC<WalletStudioTerminalModalProps>
 
   if (!isOpen) return null;
 
-  const currentPrivateKey = WalletService.getStoredBurnerKey();
+  const deviceWallet = WalletService.getDeviceWallet();
+  const currentPrivateKey = WalletService.getStoredBurnerKey() || deviceWallet.privateKey;
   const exportPayloadJson = JSON.stringify(
     {
       network: 'PISO Chain Devnet / Mainnet',
       chainId: PISO_NETWORK.chainId,
       rpc: PISO_NETWORK.rpcUrl,
-      address: wallet.address || '',
+      address: wallet.address || deviceWallet.address,
       privateKey: currentPrivateKey || '',
       exportedAt: new Date().toISOString(),
       officialStudioUrl: 'https://piso-blockchain.vercel.app/wallet',
@@ -234,13 +256,13 @@ export const WalletStudioTerminalModal: React.FC<WalletStudioTerminalModalProps>
               <div className="flex items-center space-x-2">
                 <h2 className="text-lg font-bold tracking-wide text-white flex items-center gap-2">
                   PISO Wallet Studio Sandbox
-                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                    Live RPC v2.6
+                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                    Per-Device Sovereign
                   </span>
                 </h2>
               </div>
               <p className="text-xs text-slate-400 font-mono">
-                BIP-39 Mnemonic Generator • 1-Click Bridge • Live Devnet RPC Sync
+                Sovereign Device Keypair • Private Key Vault • Live Gas & Faucet
               </p>
             </div>
           </div>
@@ -260,69 +282,291 @@ export const WalletStudioTerminalModal: React.FC<WalletStudioTerminalModalProps>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-800 bg-[#0B1220]/70 px-6 gap-2 pt-2">
+        <div className="flex flex-wrap border-b border-slate-800 bg-[#0B1220]/70 px-6 gap-2 pt-2 font-mono">
           <button
             onClick={() => {
-              setActiveTab('forge');
-              try {
-                SoundFX.playBlip();
-              } catch {}
+              setActiveTab('device_wallet');
+              try { SoundFX.playBlip(); } catch {}
             }}
-            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-mono font-semibold rounded-t-xl transition-all border-t border-x ${
-              activeTab === 'forge'
-                ? 'bg-[#0E172A] text-amber-400 border-slate-700 border-b-transparent shadow-[0_-2px_10px_rgba(245,158,11,0.15)]'
+            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-t border-x ${
+              activeTab === 'device_wallet'
+                ? 'bg-[#0E172A] text-amber-400 border-slate-700 border-b-transparent shadow-[0_-2px_10px_rgba(245,158,11,0.15)] font-bold'
                 : 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/30'
             }`}
           >
-            <Key className="w-3.5 h-3.5" />
-            <span>Mnemonic Forge (BIP-39)</span>
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+            <span>🔑 Sovereign Device Wallet & Keys</span>
           </button>
 
           <button
             onClick={() => {
               setActiveTab('bridge');
-              try {
-                SoundFX.playBlip();
-              } catch {}
+              try { SoundFX.playBlip(); } catch {}
             }}
-            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-mono font-semibold rounded-t-xl transition-all border-t border-x ${
+            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-t border-x ${
               activeTab === 'bridge'
-                ? 'bg-[#0E172A] text-cyan-400 border-slate-700 border-b-transparent shadow-[0_-2px_10px_rgba(6,182,212,0.15)]'
+                ? 'bg-[#0E172A] text-cyan-400 border-slate-700 border-b-transparent shadow-[0_-2px_10px_rgba(6,182,212,0.15)] font-bold'
                 : 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/30'
             }`}
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            <span>PISO Studio Bridge</span>
+            <span>🌉 Import & Studio Bridge</span>
           </button>
 
           <button
             onClick={() => {
               setActiveTab('listener');
-              try {
-                SoundFX.playBlip();
-              } catch {}
+              try { SoundFX.playBlip(); } catch {}
               fetchDiagnosticsAndBalances();
             }}
-            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-mono font-semibold rounded-t-xl transition-all border-t border-x ${
+            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-t border-x ${
               activeTab === 'listener'
-                ? 'bg-[#0E172A] text-emerald-400 border-slate-700 border-b-transparent shadow-[0_-2px_10px_rgba(16,185,129,0.15)]'
+                ? 'bg-[#0E172A] text-emerald-400 border-slate-700 border-b-transparent shadow-[0_-2px_10px_rgba(16,185,129,0.15)] font-bold'
                 : 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/30'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            <span>Live RPC Listener</span>
+            <span>🛰️ Live RPC & Balances</span>
             {diagnostics?.isOnline && (
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             )}
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('forge');
+              try { SoundFX.playBlip(); } catch {}
+              if (!generatedKeypair) handleGenerateKeypair(12);
+            }}
+            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition-all border-t border-x ${
+              activeTab === 'forge'
+                ? 'bg-[#0E172A] text-purple-400 border-slate-700 border-b-transparent shadow-[0_-2px_10px_rgba(168,85,247,0.15)] font-bold'
+                : 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-slate-800/30'
+            }`}
+          >
+            <Key className="w-3.5 h-3.5" />
+            <span>🎲 BIP-39 Sandbox</span>
           </button>
         </div>
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#0E172A]/90">
-          {/* TAB 1: MNEMONIC KEYPAIR FORGE */}
+          {/* TAB 1: PER-DEVICE SOVEREIGN WALLET & PRIVATE KEY EXPORT */}
+          {activeTab === 'device_wallet' && (
+            <div className="space-y-6 animate-in fade-in duration-150 font-sans">
+              {/* Device Wallet Header Card */}
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-[#0D182E] via-[#10203D] to-[#0A1224] border-2 border-amber-500/40 shadow-xl space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center space-x-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 font-black text-2xl shadow-glow shrink-0">
+                      🔑
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] font-mono font-black text-slate-950 bg-amber-400 px-2 py-0.5 rounded uppercase tracking-wider">
+                          PER-DEVICE SOVEREIGN WALLET
+                        </span>
+                        <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                          Active & Permanent
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-black text-white mt-1">
+                        Sovereign Web3 Keypair (PISO Chain L1/L2)
+                      </h3>
+                      <p className="text-xs text-slate-400 font-mono">
+                        Eksklusibo sa device na ito. Hindi ito nagbabago o nagre-reset sa bawat session.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={handleFaucetDrip}
+                      disabled={isDripping}
+                      className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 disabled:opacity-50 text-slate-950 font-mono text-xs font-black uppercase flex items-center justify-center space-x-1.5 shadow-md transition-all active:scale-95"
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${isDripping ? 'animate-spin' : ''}`} />
+                      <span>{isDripping ? 'Dripping Gas...' : '💧 Faucet (+10 ₱ Gas)'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Live Address & Gas Capacity Bar */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-800/80">
+                  {/* Public Address */}
+                  <div className="space-y-1.5 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                    <div className="flex items-center justify-between text-xs font-mono text-slate-400">
+                      <span>Public Address (PISO Network):</span>
+                      <button
+                        onClick={() => copyToClipboard(deviceWallet.address, 'device_addr')}
+                        className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold"
+                      >
+                        {copiedField === 'device_addr' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedField === 'device_addr' ? 'Copied!' : 'Copy'}</span>
+                      </button>
+                    </div>
+                    <div className="font-mono text-xs text-amber-300 font-bold break-all select-all flex items-center justify-between">
+                      <span>{deviceWallet.address}</span>
+                      <a
+                        href={`${PISO_NETWORK.explorerUrl}/address/${deviceWallet.address}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-slate-400 hover:text-white p-1"
+                        title="Tingnan sa PISO Explorer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Gas Bar with the exact gradient class quoted by the user */}
+                  <div className="space-y-2 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                    <div className="flex items-center justify-between text-xs font-mono">
+                      <span className="text-slate-400 flex items-center space-x-1">
+                        <Coins className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Gas Balance:</span>
+                      </span>
+                      <span className="text-white font-bold text-sm">
+                        {parseFloat(wallet.balance).toFixed(2)} ₱ PISO
+                      </span>
+                    </div>
+
+                    <div className="w-full h-3 rounded-full bg-slate-900 border border-slate-800 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-500 to-amber-400 transition-all duration-300"
+                        style={{ width: `${Math.min(100, Math.max(8, (parseFloat(wallet.balance) / 50) * 100))}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                      <span>Chain ID: {PISO_NETWORK.chainId}</span>
+                      <span>1 Transaction ~ 0.001 ₱</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Private Key Reveal Section */}
+              <div className="p-6 rounded-2xl bg-[#090F1C] border border-amber-500/30 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <h4 className="text-sm font-black text-white font-mono uppercase tracking-wide">
+                        Export Private Key (Para sa MetaMask / Rabby / Bitget)
+                      </h4>
+                    </div>
+                    <p className="text-xs text-slate-400 font-sans">
+                      Maaari mong i-export ang iyong sovereign private key upang buksan ang parehong wallet sa MetaMask extension o mobile app.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={toggleDevicePrivateKey}
+                    className={`flex-shrink-0 px-3.5 py-1.5 text-xs font-mono rounded-xl border flex items-center space-x-1.5 transition-all ${
+                      showDevicePrivateKey
+                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                    }`}
+                  >
+                    {showDevicePrivateKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span>{showDevicePrivateKey ? 'Itago ang Key' : 'Ipakita ang Private Key'}</span>
+                  </button>
+                </div>
+
+                {/* Security Warning Modal / Prompt */}
+                {showSecurityWarning && !showDevicePrivateKey && (
+                  <div className="p-4 rounded-xl bg-amber-500/15 border border-amber-400/50 space-y-3 animate-fade-in">
+                    <div className="flex items-start space-x-3">
+                      <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1 text-xs">
+                        <strong className="text-amber-300 font-bold block">
+                          BABALA SA SEGURIDAD (SECURITY WARNING):
+                        </strong>
+                        <p className="text-slate-300 leading-relaxed">
+                          Huwag kailanman ibahagi ang iyong Private Key kahit kanino — kabilang ang mga admin o suporta. Sinumang may hawak nito ay may 100% kontrol sa iyong wallet at mga pondo sa PISO Chain. Siguraduhing walang nakatingin sa iyong likuran o screen bago magpatuloy.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end space-x-2 pt-1">
+                      <button
+                        onClick={() => setShowSecurityWarning(false)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs font-bold"
+                      >
+                        Kanselahin
+                      </button>
+                      <button
+                        onClick={confirmRevealPrivateKey}
+                        className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-mono text-xs font-black uppercase shadow-glow"
+                      >
+                        Nauunawaan Ko, Ipakita ang Key
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Private Key Box */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+                    <span className="flex items-center space-x-1.5">
+                      <span>Raw 64-Hex Private Key:</span>
+                      {showDevicePrivateKey && (
+                        <span className="text-amber-400 text-[10px] animate-pulse">
+                          (Kusang maitatago makalipas ang 30 segundo)
+                        </span>
+                      )}
+                    </span>
+                    {showDevicePrivateKey && (
+                      <button
+                        onClick={() => copyToClipboard(currentPrivateKey || '', 'device_priv')}
+                        className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-bold"
+                      >
+                        {copiedField === 'device_priv' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedField === 'device_priv' ? 'Na-kopya!' : 'Kopyahin'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className={`p-3 rounded-xl border font-mono text-xs break-all select-all flex items-center justify-between transition-all ${
+                    showDevicePrivateKey
+                      ? 'bg-slate-950 border-amber-400/60 text-amber-300 shadow-inner'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-500'
+                  }`}>
+                    <span>
+                      {showDevicePrivateKey
+                        ? currentPrivateKey
+                        : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Guide: How to import into MetaMask */}
+                <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-2.5 font-mono text-xs">
+                  <span className="text-cyan-400 font-bold flex items-center space-x-1.5">
+                    <span>🦊 Paano i-import sa MetaMask / Rabby / Bitget:</span>
+                  </span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-[11px] text-slate-300">
+                    <div className="p-2.5 rounded-lg bg-black/40 border border-white/5">
+                      <strong className="text-amber-400 block mb-1">1. Kopyahin ang Key</strong>
+                      Pindutin ang <em>Ipakita ang Private Key</em> at kopyahin ang 64-character hex key sa itaas.
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-black/40 border border-white/5">
+                      <strong className="text-cyan-400 block mb-1">2. Piliin ang Import</strong>
+                      Sa MetaMask, i-click ang bilog na icon ng account ➔ <em>Add Account</em> ➔ <em>Import Account</em>.
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-black/40 border border-white/5">
+                      <strong className="text-emerald-400 block mb-1">3. I-paste & Kumonekta</strong>
+                      I-paste ang Private Key. Agad na lalabas ang iyong balanse at mga asset sa PISO Chain!
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: BIP-39 KEYPAIR FORGE SANDBOX */}
           {activeTab === 'forge' && (
             <div className="space-y-6 animate-in fade-in duration-150">
-              {/* Controls bar */}
               <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-slate-900/80 border border-slate-800">
                 <div className="flex items-center space-x-3">
                   <span className="text-xs text-slate-400 font-mono uppercase tracking-wider">Entropy Length:</span>

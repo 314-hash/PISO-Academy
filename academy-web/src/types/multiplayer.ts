@@ -64,7 +64,9 @@ export type NetworkMessageType =
   | 'player_speech'     // Floating 3D speech bubble trigger
   | 'player_interact'   // Direct player interaction request
   | 'player_emote'      // Emotes (wave, bow, dance, thumbs_up)
-  | 'study_invite';     // Cooperative learning request
+  | 'study_invite'      // Cooperative learning request
+  | 'request_snapshot'  // Request snapshot of all online peers from room
+  | 'player_snapshot';  // Full list of active peers sent to newcomer
 
 export interface NetworkChatPayload {
   messageId: string;

@@ -76,7 +76,7 @@ export class RemotePlayerEntity {
    * Constructs the modular 3D avatar matching the remote player's config
    */
   private buildAvatar(): void {
-    if (this.state.avatarMode === 'human' || !this.state.avatarMode) {
+    if (this.state.avatarMode === 'human' || this.state.avatarMode === 'custom_glb' || !this.state.avatarMode) {
       this.characterInstance = createHumanoidCharacter(this.state.humanAvatar);
       this.rootGroup.add(this.characterInstance.rootGroup);
 

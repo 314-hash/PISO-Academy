@@ -9,6 +9,11 @@ import {
   STRUCTURE_DEFS,
   StructureDef,
   StructureCategory,
+  StructureStyleTheme,
+  StructureModifications,
+  PlacedStructureRecord,
+  loadPlacedStructures,
+  dismantlePlacedStructure,
   BLOCK_BUNDLES,
   BlockBundle,
   buyBlocksWithPiso,
@@ -33,10 +38,34 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
   const [selectedQtyMap, setSelectedQtyMap] = useState<Record<string, number>>({});
   const [feedback, setFeedback] = useState<{ text: string; isError: boolean } | null>(null);
 
+  // Real 3D Structure Modifications & Placement State
+  const [selectedCategory, setSelectedCategory] = useState<StructureCategory>(
+    miningEngine?.selectedStructureCategory || 1
+  );
+  const [rotationDeg, setRotationDeg] = useState<number>(
+    Math.round(((miningEngine?.structureModifications.rotationY || 0) * 180) / Math.PI) % 360
+  );
+  const [selectedTheme, setSelectedTheme] = useState<StructureStyleTheme>(
+    miningEngine?.structureModifications.styleTheme || 'narra'
+  );
+  const [selectedScale, setSelectedScale] = useState<number>(
+    miningEngine?.structureModifications.scale || 1.0
+  );
+  const [customNameInput, setCustomNameInput] = useState<string>(
+    miningEngine?.structureModifications.customName || ''
+  );
+  const [placedStructures, setPlacedStructures] = useState<PlacedStructureRecord[]>(() =>
+    loadPlacedStructures()
+  );
+
   useEffect(() => {
     const handleStatsUpdate = (e: any) => setStats(e.detail || PlayerStatsEngine.getStats());
     const handleInvUpdate = (e: any) => setInventory(e.detail || loadInventory());
     const handleBalanceUpdate = () => setPisoBalance(PisoEconomyService.getSpendablePiso());
+
+    const handleStructuresUpdate = () => {
+      setPlacedStructures(loadPlacedStructures());
+    };
 
     window.addEventListener('piso-player-stats-updated', handleStatsUpdate);
     window.addEventListener('piso-inventory-updated', handleInvUpdate);
@@ -44,6 +73,7 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
     window.addEventListener('piso-harvest-success', handleBalanceUpdate);
     window.addEventListener('piso-activity-earned', handleBalanceUpdate);
     window.addEventListener('piso-farming-stats-updated', handleBalanceUpdate);
+    window.addEventListener('piso-structures-updated', handleStructuresUpdate);
 
     return () => {
       window.removeEventListener('piso-player-stats-updated', handleStatsUpdate);
@@ -52,6 +82,7 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
       window.removeEventListener('piso-harvest-success', handleBalanceUpdate);
       window.removeEventListener('piso-activity-earned', handleBalanceUpdate);
       window.removeEventListener('piso-farming-stats-updated', handleBalanceUpdate);
+      window.removeEventListener('piso-structures-updated', handleStructuresUpdate);
     };
   }, []);
 
@@ -96,6 +127,36 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
       setInventory(loadInventory());
     } else {
       showToast(result.message, true);
+    }
+  };
+
+  const handleApplyModifications = (
+    cat: StructureCategory = selectedCategory,
+    rot: number = rotationDeg,
+    theme: StructureStyleTheme = selectedTheme,
+    scale: number = selectedScale,
+    name: string = customNameInput
+  ) => {
+    if (!miningEngine) return;
+    miningEngine.placementMode = 'structure';
+    miningEngine.selectedStructureCategory = cat;
+    miningEngine.setModifications({
+      rotationY: (rot * Math.PI) / 180,
+      scale,
+      styleTheme: theme,
+      customName: name,
+    });
+  };
+
+  const handleDismantle = (id: string, name: string) => {
+    if (!miningEngine) return;
+    const success = miningEngine.dismantleStructure(id);
+    if (success) {
+      showToast(`Matagumpay na nabaklas ang ${name}! 70% ng materyales ay naibalik.`);
+      setInventory(loadInventory());
+      setPlacedStructures(loadPlacedStructures());
+    } else {
+      showToast('Hindi nabaklas ang estruktura.', true);
     }
   };
 
@@ -219,44 +280,248 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
   const renderBuildTab = () => {
     return (
       <div className="flex flex-col h-full gap-4 overflow-y-auto pr-1">
-        {miningEngine?.builderMode ? (
-          <div className="bg-emerald-950/40 border border-emerald-500/50 rounded-xl p-4 text-center">
-            <h3 className="text-sm font-black text-emerald-400 mb-1 font-display uppercase tracking-wider flex items-center justify-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Builder Mode Active
+        {/* Builder Mode Header & Placement Mode Selector */}
+        <div className="bg-slate-900/80 rounded-xl p-4 border border-amber-500/20 text-center shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-black text-amber-400 font-display uppercase tracking-wider flex items-center gap-2">
+              <span>🏗️</span> Metaworld Construction Studio
             </h3>
-            <p className="text-xs text-slate-300 mb-3">Click on the ground in the 3D world to construct selected structure.</p>
+            <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+              miningEngine?.builderMode
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 animate-pulse'
+                : 'bg-slate-800 text-slate-400 border border-slate-700'
+            }`}>
+              {miningEngine?.builderMode ? '● Builder Active' : '○ Standby'}
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-300 mb-3 text-left">
+            Maglagay ng mga totoong 3D architectural structure na may mga modipikasyon (pag-ikot, tema ng materyal, laki, at pangalan).
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 mb-3">
             <button
+              type="button"
               onClick={() => {
-                if (miningEngine) miningEngine.builderMode = false;
+                if (miningEngine) {
+                  miningEngine.placementMode = 'structure';
+                  handleApplyModifications(selectedCategory);
+                }
               }}
-              className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold text-xs shadow transition-colors"
+              className={`py-2 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 ${
+                miningEngine?.placementMode === 'structure'
+                  ? 'bg-cyan-500 text-slate-950 font-black shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700'
+              }`}
             >
-              Exit Builder Mode
+              <span>🏠</span>
+              <span>3D Structures</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (miningEngine) {
+                  miningEngine.placementMode = 'block';
+                }
+              }}
+              className={`py-2 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 ${
+                miningEngine?.placementMode === 'block'
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700'
+              }`}
+            >
+              <span>🟫</span>
+              <span>Single Blocks</span>
             </button>
           </div>
-        ) : (
-          <div className="bg-slate-900/80 rounded-xl p-4 border border-amber-500/20 text-center">
-            <h3 className="text-sm font-black text-amber-400 mb-1 font-display uppercase tracking-wider">
-              Metaworld Construction
-            </h3>
-            <p className="text-xs text-slate-300 mb-3">Enter builder mode to place structures and blocks in the world.</p>
-            <button
-              onClick={() => {
-                if (miningEngine) miningEngine.builderMode = true;
-              }}
-              className="px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-lg text-xs w-full shadow uppercase tracking-wider transition-all"
-            >
-              Enter Builder Mode (Key: V)
-            </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (miningEngine) {
+                miningEngine.builderMode = !miningEngine.builderMode;
+                if (miningEngine.builderMode) {
+                  miningEngine.placementMode = 'structure';
+                  handleApplyModifications(selectedCategory);
+                  showToast('🏗️ Builder Mode Active! I-click ang lupa o pindutin ang "B" para itayo. "R" para paikutin.');
+                }
+              }
+            }}
+            className={`w-full py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all shadow-md ${
+              miningEngine?.builderMode
+                ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950'
+            }`}
+          >
+            {miningEngine?.builderMode ? 'I-off ang Builder Mode' : 'Paganahin ang Builder Mode (Hotkey: V)'}
+          </button>
+        </div>
+
+        {/* ─── REAL 3D STRUCTURE MODIFICATIONS PANEL ─── */}
+        <div className="bg-gradient-to-br from-[#161F30] via-[#0F172A] to-[#161F30] rounded-xl p-4 border border-cyan-500/30 space-y-4 shadow-xl">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div className="flex items-center space-x-2">
+              <span className="text-xl">{STRUCTURE_DEFS[selectedCategory]?.emoji || '🏠'}</span>
+              <div>
+                <div className="text-xs font-black text-white font-display uppercase tracking-wider">
+                  Modipikasyon: {STRUCTURE_DEFS[selectedCategory]?.name || 'Bahay'}
+                </div>
+                <div className="text-[10px] text-cyan-400">I-customize bago itayo sa Terranian Metaverse</div>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400 bg-black/40 px-2 py-0.5 rounded border border-white/5">
+              Rot: {rotationDeg}° | Scale: {selectedScale}x
+            </span>
           </div>
-        )}
+
+          {/* 1. Rotation Selector */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[10px] font-bold uppercase text-slate-400 font-mono flex items-center gap-1">
+                <span>🔄</span>
+                <span>Direksyon ng Pag-ikot (Rotation):</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextRot = (rotationDeg + 90) % 360;
+                  setRotationDeg(nextRot);
+                  handleApplyModifications(selectedCategory, nextRot, selectedTheme, selectedScale, customNameInput);
+                }}
+                className="text-[10px] font-mono text-amber-400 hover:text-amber-300 underline"
+              >
+                Paikutin +90° (Hotkey: R)
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {[0, 90, 180, 270].map((deg) => (
+                <button
+                  key={deg}
+                  type="button"
+                  onClick={() => {
+                    setRotationDeg(deg);
+                    handleApplyModifications(selectedCategory, deg, selectedTheme, selectedScale, customNameInput);
+                  }}
+                  className={`py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
+                    rotationDeg === deg
+                      ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
+                      : 'bg-black/40 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  {deg}° {deg === 0 ? 'Harap' : deg === 90 ? 'Kanan' : deg === 180 ? 'Likod' : 'Kaliwa'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. Style Themes */}
+          <div>
+            <label className="text-[10px] font-bold uppercase text-slate-400 font-mono mb-1.5 block">
+              🎨 Tema ng Materyal at Disenyo (Style Theme):
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: 'narra' as StructureStyleTheme, name: 'Narra Timber', desc: 'Katutubong hardwood & sawali', emoji: '🌿', color: 'border-amber-700/50 text-amber-300' },
+                { id: 'bamboo' as StructureStyleTheme, name: 'Bamboo Cane', desc: 'Sariwang kawayan & nipa', emoji: '🎋', color: 'border-emerald-600/50 text-emerald-300' },
+                { id: 'cyber_neon' as StructureStyleTheme, name: 'Cyber Neon', desc: 'Matte obsidian & cyan glow', emoji: '⚡', color: 'border-cyan-500/50 text-cyan-300' },
+                { id: 'kuta_stone' as StructureStyleTheme, name: 'Intramuros Stone', desc: 'Batong adobe at mga sulo', emoji: '🏰', color: 'border-slate-500/50 text-slate-300' },
+              ].map((th) => (
+                <button
+                  key={th.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTheme(th.id);
+                    handleApplyModifications(selectedCategory, rotationDeg, th.id, selectedScale, customNameInput);
+                  }}
+                  className={`p-2 rounded-xl text-left border transition-all ${
+                    selectedTheme === th.id
+                      ? `bg-black/60 ${th.color} shadow-[0_0_12px_rgba(245,158,11,0.2)] font-bold`
+                      : 'bg-black/30 border-slate-800/80 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="text-xs flex items-center space-x-1.5">
+                    <span>{th.emoji}</span>
+                    <span className="font-bold">{th.name}</span>
+                  </div>
+                  <div className="text-[9px] text-slate-500 mt-0.5">{th.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. Scale & Custom Name */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold uppercase text-slate-400 font-mono mb-1 block">
+                Laki ng Estruktura (Scale):
+              </label>
+              <div className="flex gap-1">
+                {[
+                  { s: 0.8, label: '0.8x Maliit' },
+                  { s: 1.0, label: '1.0x Normal' },
+                  { s: 1.3, label: '1.3x Malaki' },
+                ].map((item) => (
+                  <button
+                    key={item.s}
+                    type="button"
+                    onClick={() => {
+                      setSelectedScale(item.s);
+                      handleApplyModifications(selectedCategory, rotationDeg, selectedTheme, item.s, customNameInput);
+                    }}
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-mono transition-all ${
+                      selectedScale === item.s
+                        ? 'bg-cyan-500 text-slate-950 font-black'
+                        : 'bg-black/40 text-slate-400 border border-slate-800 hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-bold uppercase text-slate-400 font-mono mb-1 block">
+                Pangalan / 3D Signboard:
+              </label>
+              <input
+                type="text"
+                placeholder="Hal. Juan's Bahay Kubo"
+                value={customNameInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomNameInput(val);
+                  handleApplyModifications(selectedCategory, rotationDeg, selectedTheme, selectedScale, val);
+                }}
+                className="w-full px-2.5 py-1.5 rounded-lg bg-black/50 border border-slate-700 text-white text-xs font-mono focus:border-cyan-400 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Deploy Action */}
+          <button
+            type="button"
+            onClick={() => {
+              if (miningEngine) {
+                miningEngine.builderMode = true;
+                miningEngine.placementMode = 'structure';
+                handleApplyModifications();
+                showToast(`🏗️ Handa na ang ${STRUCTURE_DEFS[selectedCategory]?.name}! I-click ang lupa o pindutin ang "B" para itayo.`);
+              }
+            }}
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-cyan-500 hover:from-cyan-400 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-cyan-950/50 transition-all flex items-center justify-center space-x-2"
+          >
+            <span>🔨</span>
+            <span>I-equip ang Blueprint na Ito para Itayo</span>
+          </button>
+        </div>
 
         {/* Structure Templates with 1-Click Buy Missing Materials */}
         <div className="bg-slate-900/80 rounded-xl p-4 border border-white/10 flex-1">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-black text-cyan-400 font-display uppercase tracking-wider">
-              Structure Blueprints
+              Mga Blueprint ng Estruktura ({STRUCTURE_DEFS.filter(d => d.category !== 0).length})
             </h3>
             <span className="text-[11px] text-slate-400 font-mono">₱PISO: {pisoBalance.toFixed(0)}</span>
           </div>
@@ -267,6 +532,7 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
               const canBuild = Object.entries(def.recipe).every(
                 ([item, qty]) => (inventory[item] || 0) >= (qty ?? 0)
               );
+              const isSelected = selectedCategory === def.category;
 
               // Calculate missing materials and cost
               let missingCost = 0;
@@ -286,9 +552,11 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
               return (
                 <div
                   key={i}
-                  className={`bg-black/40 rounded-xl p-3 border transition-all ${
-                    canBuild
-                      ? 'border-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.1)]'
+                  className={`bg-black/40 rounded-xl p-3.5 border transition-all ${
+                    isSelected
+                      ? 'border-cyan-400 bg-cyan-950/20 shadow-[0_0_20px_rgba(6,182,212,0.2)]'
+                      : canBuild
+                      ? 'border-cyan-500/30 hover:border-cyan-500/60'
                       : 'border-white/5 hover:border-white/20'
                   }`}
                 >
@@ -296,22 +564,29 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">{def.emoji}</span>
                       <div>
-                        <div className="font-bold text-white font-display uppercase text-sm">{def.name}</div>
+                        <div className="font-bold text-white font-display uppercase text-sm flex items-center gap-2">
+                          <span>{def.name}</span>
+                          {isSelected && (
+                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono border border-cyan-400/40">
+                              Naka-pili
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-400">{def.benefit}</div>
                       </div>
                     </div>
                     {canBuild ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40">
-                        Ready
+                        Handa
                       </span>
                     ) : (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/40">
-                        Materials Needed
+                        Kulang sa Gamit
                       </span>
                     )}
                   </div>
 
-                  <p className="text-[11px] text-slate-400 mb-2.5">{def.description}</p>
+                  <p className="text-[11px] text-slate-400 mb-2.5 leading-relaxed">{def.description}</p>
 
                   {/* Materials breakdown */}
                   <div className="space-y-1 mb-3 bg-black/30 p-2 rounded-lg border border-white/5">
@@ -331,27 +606,34 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
 
                   {/* Actions */}
                   <div className="flex gap-2">
-                    {canBuild ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(def.category);
+                        if (miningEngine) {
+                          miningEngine.builderMode = true;
+                          miningEngine.placementMode = 'structure';
+                          handleApplyModifications(def.category);
+                        }
+                        showToast(`Napili ang ${def.name}! Handa nang ilagay sa mapa.`);
+                      }}
+                      className={`flex-1 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
+                        isSelected
+                          ? 'bg-cyan-500 text-slate-950 shadow-md'
+                          : 'bg-white/10 hover:bg-white/20 text-white'
+                      }`}
+                    >
+                      {isSelected ? '✓ Kasalukuyang Napili' : 'Piliin ang Blueprint'}
+                    </button>
+
+                    {!canBuild && (
                       <button
-                        disabled={!miningEngine?.builderMode}
-                        onClick={() => {
-                          showToast(`Selected ${def.name}. Click ground to build!`);
-                        }}
-                        className={`w-full py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${
-                          miningEngine?.builderMode
-                            ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg'
-                            : 'bg-white/10 text-white/40 cursor-not-allowed'
-                        }`}
-                      >
-                        {miningEngine?.builderMode ? `Deploy ${def.name}` : 'Enter Builder Mode First'}
-                      </button>
-                    ) : (
-                      <button
+                        type="button"
                         onClick={() => handleAutoBuyMissing(def.recipe)}
-                        className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black rounded-lg text-xs uppercase tracking-wider shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-1.5"
+                        className="px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-black rounded-lg text-xs uppercase tracking-wider shadow-md transition-transform active:scale-95 flex items-center justify-center gap-1 shrink-0"
                       >
                         <span>🛒</span>
-                        <span>Buy Missing ({missingCost} ₱PISO)</span>
+                        <span>Auto-Buy ({missingCost} ₱)</span>
                       </button>
                     )}
                   </div>
@@ -359,6 +641,56 @@ export const MiningBuildingStudio: React.FC<Props> = ({ onClose, miningEngine })
               );
             })}
           </div>
+        </div>
+
+        {/* ─── ACTIVE PLACED STRUCTURES REGISTRY ─── */}
+        <div className="bg-slate-900/80 rounded-xl p-4 border border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black text-amber-400 uppercase tracking-wider font-display flex items-center gap-1.5">
+              <span>🏛️</span>
+              <span>Mga Naitayong Estruktura sa Mundo ({placedStructures.length})</span>
+            </h3>
+            <span className="text-[10px] text-slate-400">Naka-save sa Browser</span>
+          </div>
+
+          {placedStructures.length === 0 ? (
+            <div className="p-4 rounded-xl bg-black/40 border border-slate-800 text-center text-xs text-slate-500">
+              Wala ka pang naitatayong estruktura. Pumili ng blueprint sa itaas para magsimula!
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {placedStructures.map((s) => {
+                const def = STRUCTURE_DEFS[s.category];
+                return (
+                  <div
+                    key={s.id}
+                    className="p-3 rounded-xl bg-black/40 border border-slate-800 flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <span className="text-xl shrink-0">{def?.emoji || '🏠'}</span>
+                      <div className="min-w-0">
+                        <div className="font-bold text-white truncate">
+                          {s.customName || s.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          Pos: ({s.position.x}, {s.position.z}) • {Math.round(((s.rotationY || 0) * 180) / Math.PI)}° • {s.styleTheme}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDismantle(s.id, s.customName || s.name)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-[10px] font-bold font-mono transition-colors shrink-0"
+                      title="Baklasin at bawiin ang 70% ng mga materyales"
+                    >
+                      🗑️ Baklasin
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     );

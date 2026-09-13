@@ -54,16 +54,18 @@ contract PISOMonsterBountyManager {
         authorizedVerifiers[msg.sender] = true;
 
         // Initialize Monster Catalog
-        // Small Monster Farms (Level 1 - 19)
-        monsterCatalog[1] = MonsterDef("Sawa / Cyber Cobra", 1, 2 * 1e18, 45, MonsterTier.SMALL_FARM);
-        monsterCatalog[2] = MonsterDef("Scavenger Vulture (Lawin)", 5, 5 * 1e18, 110, MonsterTier.SMALL_FARM);
-        monsterCatalog[3] = MonsterDef("Palawan Komodo (Bayawak)", 10, 12 * 1e18, 250, MonsterTier.SMALL_FARM);
-        monsterCatalog[4] = MonsterDef("Wild Cyber Hyena / Askal", 15, 25 * 1e18, 500, MonsterTier.SMALL_FARM);
+        // Small Monster Farms - calibrated for sustainable 10-year economy
+        // ~50M P2E pool / 10 years / 10,000 daily active players = ~1.37 PISO/day avg
+        monsterCatalog[1] = MonsterDef("Sawa / Cyber Cobra", 1, 1 * 1e18, 30, MonsterTier.SMALL_FARM);
+        monsterCatalog[2] = MonsterDef("Scavenger Vulture (Lawin)", 5, 2 * 1e18, 80, MonsterTier.SMALL_FARM);
+        monsterCatalog[3] = MonsterDef("Palawan Komodo (Bayawak)", 10, 5 * 1e18, 200, MonsterTier.SMALL_FARM);
+        monsterCatalog[4] = MonsterDef("Wild Cyber Hyena / Askal", 15, 10 * 1e18, 400, MonsterTier.SMALL_FARM);
 
         // Giga Buwaya Titans in Barongs & Capes (Level 20+ Requirement)
-        monsterCatalog[101] = MonsterDef("Giga Buwaya Don Crocodilo", 20, 5000 * 1e18, 25000, MonsterTier.GIGA_BUWAYA_TITAN);
-        monsterCatalog[102] = MonsterDef("Giga Buwaya General Alligator", 30, 15000 * 1e18, 65000, MonsterTier.GIGA_BUWAYA_TITAN);
-        monsterCatalog[103] = MonsterDef("Supreme Buwaya Senador Supremo", 45, 50000 * 1e18, 200000, MonsterTier.GIGA_BUWAYA_TITAN);
+        // Boss raids are rare milestone events, not daily grind
+        monsterCatalog[101] = MonsterDef("Giga Buwaya Don Crocodilo", 20, 75 * 1e18, 1500, MonsterTier.GIGA_BUWAYA_TITAN);
+        monsterCatalog[102] = MonsterDef("Giga Buwaya General Alligator", 30, 200 * 1e18, 3000, MonsterTier.GIGA_BUWAYA_TITAN);
+        monsterCatalog[103] = MonsterDef("Supreme Buwaya Senador Supremo", 45, 500 * 1e18, 6000, MonsterTier.GIGA_BUWAYA_TITAN);
     }
 
     function setAuthorizedVerifier(address verifier, bool authorized) external onlyOwner {
@@ -153,13 +155,15 @@ contract PISOMonsterBountyManager {
 
     /**
      * @notice Deterministic EXP requirement for next level.
-     *         Matches frontend PlayerStatsEngine formula exactly:
-     *         100 + (lvl - 1) * 150 + ((lvl - 1) ** 2) * 20
+     *         Simple standard RPG curve: ~100 * lvl^1.4
+     *         Level 1 = 100, Level 10 ≈ 1900, Level 50 ≈ 25000
+     *         Approximated with integer math: 100 + (lvl * 90) + (lvl * lvl * 2)
      */
     function getExpRequiredForLevel(uint8 lvl) public pure returns (uint256) {
         if (lvl <= 1) return 100;
-        uint256 n = uint256(lvl) - 1;
-        return 100 + n * 150 + n * n * 20;
+        uint256 n = uint256(lvl);
+        // Polynomial approximation of 100 * n^1.4: 100 + 90n + 2n^2
+        return 100 + (n * 90) + (n * n * 2);
     }
 
     /**

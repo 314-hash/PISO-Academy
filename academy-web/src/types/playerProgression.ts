@@ -223,6 +223,14 @@ export interface PlayerProfileState {
   lastDailyReset: string;
   classAbilityLastUsed: number;
   statsAllocatedTotal: number;
+  accountId?: string;
+  walletAddress?: string;
+  createdAt?: number;
+  lastLoginAt?: number;
+  usernameChangeUsed?: boolean;
+  usernameChangedAt?: number;
+  savedPosition?: { x: number; y: number; z: number; heading?: number; zone?: string };
+  savedControls?: any;
 }
 
 export type StatGainEventDetail = {

@@ -2,6 +2,21 @@
  * questsData.ts
  * Master configuration for the PISO Academy Multi-Category Quest Engine.
  * Categories: Main, Academy, Developer, Exploration, Community, Daily, Secret, Boss.
+ *
+ * ─── 10-YEAR TOKEN ECONOMY CALIBRATION ────────────────────────────────────────
+ * Total P2E pool:  50,000,000 PISO (50% of 100M supply)
+ * Duration:        10 years = 3,650 days
+ * Target DAU:      ~10,000 active players (growth to 100k by year 5)
+ * Yearly emission: ~5,000,000 PISO / year
+ * Daily global:    ~13,698 PISO / day across all players
+ * Per-player cap:  ~25–50 PISO/day hard cap (enforced by Education Tier system)
+ *
+ * Quest reward tiers:
+ *   Daily repeatable  : 1–5 PISO
+ *   Standard mission  : 2–15 PISO
+ *   Major milestone   : 15–50 PISO
+ *   Boss / Secret     : 15–25 PISO (rare, not daily)
+ * ──────────────────────────────────────────────────────────────────────────────
  */
 
 import { QuestDef } from '../types/playerProgression';
@@ -24,7 +39,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     requiredLevel: 1,
     xpReward: 150,
     spReward: 1,
-    pisoReward: 50,
+    pisoReward: 3,
     statRewards: { knowledge: 2, bayanihan: 2 },
     chainCredentialTier: 'Tuklas Initiate',
   },
@@ -42,7 +57,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     requiredLevel: 2,
     xpReward: 250,
     spReward: 1,
-    pisoReward: 75,
+    pisoReward: 5,
     statRewards: { coding: 5, problemSolving: 3 },
   },
   {
@@ -59,7 +74,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     requiredLevel: 5,
     xpReward: 400,
     spReward: 2,
-    pisoReward: 100,
+    pisoReward: 8,
     statRewards: { knowledge: 5, blockchain: 5 },
     chainCredentialTier: 'Oracle Seeker',
   },
@@ -77,7 +92,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     requiredLevel: 8,
     xpReward: 600,
     spReward: 2,
-    pisoReward: 250,
+    pisoReward: 15,
     statRewards: { problemSolving: 8, bayanihan: 5 },
   },
   {
@@ -94,7 +109,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     requiredLevel: 20,
     xpReward: 1500,
     spReward: 4,
-    pisoReward: 1000,
+    pisoReward: 50,
     statRewards: { knowledge: 10, coding: 10, blockchain: 10, bayanihan: 10 },
     chainCredentialTier: 'Sovereign Architect Master',
   },
@@ -114,7 +129,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     claimed: false,
     xpReward: 100,
     spReward: 1,
-    pisoReward: 25,
+    pisoReward: 2,
     statRewards: { knowledge: 4 },
   },
   {
@@ -129,7 +144,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     claimed: false,
     xpReward: 200,
     spReward: 1,
-    pisoReward: 50,
+    pisoReward: 4,
     statRewards: { knowledge: 8, problemSolving: 4 },
   },
   {
@@ -144,7 +159,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     claimed: false,
     xpReward: 600,
     spReward: 2,
-    pisoReward: 300,
+    pisoReward: 20,
     statRewards: { coding: 12, blockchain: 8 },
     chainCredentialTier: 'EVM Master Diploma',
   },
@@ -178,7 +193,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     claimed: false,
     xpReward: 350,
     spReward: 1,
-    pisoReward: 100,
+    pisoReward: 8,
     statRewards: { coding: 8, problemSolving: 6 },
   },
   {
@@ -193,7 +208,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     claimed: false,
     xpReward: 400,
     spReward: 2,
-    pisoReward: 150,
+    pisoReward: 12,
     statRewards: { blockchain: 10, coding: 5 },
     chainCredentialTier: 'Verified Deployer',
   },
@@ -212,7 +227,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     completed: false,
     claimed: false,
     xpReward: 200,
-    pisoReward: 50,
+    pisoReward: 4,
     statRewards: { creativity: 4, problemSolving: 4 },
   },
   {
@@ -244,7 +259,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     completed: false,
     claimed: false,
     xpReward: 75,
-    pisoReward: 25,
+    pisoReward: 2,
     statRewards: { bayanihan: 5 },
   },
   {
@@ -273,7 +288,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     claimed: false,
     xpReward: 350,
     spReward: 1,
-    pisoReward: 150,
+    pisoReward: 10,
     statRewards: { bayanihan: 10, knowledge: 8 },
   },
 
@@ -291,7 +306,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     completed: false,
     claimed: false,
     xpReward: 50,
-    pisoReward: 10,
+    pisoReward: 1,
     statRewards: { blockchain: 1 },
   },
   {
@@ -305,7 +320,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     completed: false,
     claimed: false,
     xpReward: 100,
-    pisoReward: 30,
+    pisoReward: 2,
     statRewards: { creativity: 2 },
   },
   {
@@ -319,7 +334,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     completed: false,
     claimed: false,
     xpReward: 120,
-    pisoReward: 40,
+    pisoReward: 3,
     statRewards: { problemSolving: 2 },
   },
 
@@ -338,7 +353,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     claimed: false,
     xpReward: 500,
     spReward: 2,
-    pisoReward: 300,
+    pisoReward: 20,
     statRewards: { creativity: 10, problemSolving: 8 },
     chainCredentialTier: 'Secret Seeker of Diwata',
   },
@@ -354,7 +369,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     claimed: false,
     xpReward: 400,
     spReward: 1,
-    pisoReward: 200,
+    pisoReward: 15,
     statRewards: { knowledge: 10, creativity: 5 },
   },
 
@@ -365,7 +380,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     id: 'boss_giga_buwaya_slayer',
     category: 'boss',
     title: 'Lupigin ang Giga Buwaya ng Korupsyon',
-    description: 'Sama-samang pabagsakin ang Level 30+ Giga Buwaya Titan sa 70M Bounty Arena.',
+    description: 'Sama-samang pabagsakin ang Level 30+ Giga Buwaya Titan sa Bounty Arena.',
     icon: '🐊',
     target: 1,
     progress: 0,
@@ -374,7 +389,7 @@ export const MASTER_QUESTS: QuestDef[] = [
     requiredLevel: 20,
     xpReward: 2000,
     spReward: 5,
-    pisoReward: 5000,
+    pisoReward: 25,
     statRewards: { problemSolving: 20, bayanihan: 15, coding: 10 },
     chainCredentialTier: 'Giga Buwaya Conqueror',
   },

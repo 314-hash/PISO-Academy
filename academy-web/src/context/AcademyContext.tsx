@@ -7,6 +7,8 @@ import { ContractDeployer, DeploymentReceipt } from '../services/contractDeploye
 import { PlayerStatsEngine } from '../services/PlayerStatsEngine';
 import { PlayerProgressionEngine } from '../services/playerProgressionEngine';
 import { GlbAvatarMetadata } from '../services/GlbAvatarService';
+import { AccountSessionService, SecurityNotification } from '../services/AccountSessionService';
+import { SaveStateEngine, SaveStatus } from '../services/SaveStateEngine';
 
 export type NavView = 'home' | 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'img2threejs' | 'worldmap' | 'chat' | 'ppfstudio' | 'worldgen' | 'economy' | 'bounties' | 'pvp';
 
@@ -307,6 +309,11 @@ interface AcademyContextType {
   setShowTutorial: (show: boolean) => void;
   controlSettings: ControlSettings;
   setControlSettings: React.Dispatch<React.SetStateAction<ControlSettings>>;
+  accountId: string | null;
+  securityNotifications: SecurityNotification[];
+  unreadSecurityCount: number;
+  markSecurityNotificationsRead: () => void;
+  saveStatus: SaveStatus;
 }
 
 const INITIAL_DAILY_QUESTS: DailyQuest[] = [
@@ -424,6 +431,33 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return ContractDeployer.getDeployments();
   });
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  // Account & Session & Save Status
+  const [accountId, setAccountId] = useState<string | null>(() => AccountSessionService.get().getStoredAccountId());
+  const [securityNotifications, setSecurityNotifications] = useState<SecurityNotification[]>(() =>
+    AccountSessionService.get().getNotifications()
+  );
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(() => SaveStateEngine.get().getStatus());
+
+  const markSecurityNotificationsRead = () => {
+    AccountSessionService.get().markAllAsRead();
+    setSecurityNotifications(AccountSessionService.get().getNotifications());
+  };
+
+  useEffect(() => {
+    const handleSecNotif = () => setSecurityNotifications(AccountSessionService.get().getNotifications());
+    const handleSaveStatus = (e: any) => {
+      if (e.detail?.status) setSaveStatus(e.detail.status);
+    };
+    window.addEventListener('piso-security-notification', handleSecNotif);
+    window.addEventListener('piso-security-notifications-read', handleSecNotif);
+    window.addEventListener('piso-save-status-changed', handleSaveStatus);
+    return () => {
+      window.removeEventListener('piso-security-notification', handleSecNotif);
+      window.removeEventListener('piso-security-notifications-read', handleSecNotif);
+      window.removeEventListener('piso-save-status-changed', handleSaveStatus);
+    };
+  }, []);
 
   // New Avatar & Gameplay State
   const [avatarMode, setAvatarModeState] = useState<'human' | 'drone' | 'custom_glb'>(() => {
@@ -716,17 +750,11 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return true;
   };
 
-  // Initialize burner wallet on load
+  // Seamless Session & Wallet Auto-Restoration on Startup
   useEffect(() => {
-    const burner = WalletService.getOrCreateBurnerWallet();
-    WalletService.getBalance(burner.address).then((bal) => {
-      setWallet({
-        address: burner.address,
-        balance: bal,
-        type: 'burner',
-        isConnected: true,
-        chainId: 2026001,
-      });
+    AccountSessionService.get().initializeSession().then(({ session, walletState }) => {
+      setAccountId(session.accountId);
+      setWallet(walletState);
     });
   }, []);
 
@@ -805,6 +833,7 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isConnected: true,
         chainId: injected.chainId,
       });
+      AccountSessionService.get().recordWalletChange(injected.address, 'injected');
       setNotification({
         message: `Connected wallet: ${injected.address.slice(0, 6)}...${injected.address.slice(-4)} to PISO Chain`,
         type: 'success',
@@ -830,6 +859,7 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         isConnected: true,
         chainId: 2026001,
       });
+      AccountSessionService.get().recordWalletChange(imported.address, 'burner');
       setAvatarNft((prev) => ({ ...prev, ownerAddress: imported.address }));
       recordQuestProgress('wallet-studio-quest', 1);
       setNotification({
@@ -1062,6 +1092,11 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setShowTutorial,
         controlSettings,
         setControlSettings,
+        accountId,
+        securityNotifications,
+        unreadSecurityCount: securityNotifications.filter((n) => !n.read).length,
+        markSecurityNotificationsRead,
+        saveStatus,
       }}
     >
       {children}

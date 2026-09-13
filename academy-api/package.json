@@ -1,0 +1,17 @@
+{
+  "name": "academy-api",
+  "version": "1.0.0",
+  "description": "PISO Academy MongoDB Backup API — Express + Mongoose server for player record persistence",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.5.2"
+  }
+}

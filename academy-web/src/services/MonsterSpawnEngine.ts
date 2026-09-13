@@ -101,6 +101,8 @@ export class MonsterSpawnEngine {
    */
   private spawnInitialBestiary() {
     // 1. GIGA BUWAYA TITANS (Level 20+ strictly required)
+    // Bounties calibrated: ~10-year P2E pool 50M / 3,650 days / 10,000 players = 1.37 avg PISO/day per player
+    // Boss titans = rare high-value events; spread over months, not daily spam.
     this.monsters.push(
       this.createBuwayaTitan(
         'titan-1',
@@ -108,8 +110,8 @@ export class MonsterSpawnEngine {
         25,
         20, // Min level
         45000,
-        12500,
-        6500,
+        75,     // 75 $PISO bounty (sustainable boss reward)
+        1500,   // 1,500 EXP
         new THREE.Vector3(75, 0, -65),
         1.15
       ),
@@ -119,8 +121,8 @@ export class MonsterSpawnEngine {
         35,
         25, // Min level
         95000,
-        28000,
-        15000,
+        200,    // 200 $PISO bounty
+        3000,   // 3,000 EXP
         new THREE.Vector3(-95, 0, -110),
         1.35
       ),
@@ -130,8 +132,8 @@ export class MonsterSpawnEngine {
         50,
         30, // Min level
         250000,
-        50000,
-        40000,
+        500,    // 500 $PISO bounty
+        6000,   // 6,000 EXP
         new THREE.Vector3(125, 0, 105),
         1.65
       )
@@ -147,7 +149,8 @@ export class MonsterSpawnEngine {
     ];
     cobraSpawns.forEach((pos, idx) => {
       this.monsters.push(
-        this.createCobra(`cobra-${idx + 1}`, `Highland Cobra #${idx + 1}`, 3, 1, 950, 12, 55, pos)
+        // Cobra: 0.5 $PISO, 30 EXP (fits beginner play, ~50-100 kills/day = 25-50 PISO/day max)
+        this.createCobra(`cobra-${idx + 1}`, `Highland Cobra #${idx + 1}`, 3, 1, 950, 1, 30, pos)
       );
     });
 
@@ -160,7 +163,8 @@ export class MonsterSpawnEngine {
     ];
     vultureSpawns.forEach((pos, idx) => {
       this.monsters.push(
-        this.createVulture(`vulture-${idx + 1}`, `Sky Vulture Scavenger #${idx + 1}`, 7, 5, 3200, 35, 160, pos)
+        // Vulture: 2 $PISO, 80 EXP
+        this.createVulture(`vulture-${idx + 1}`, `Sky Vulture Scavenger #${idx + 1}`, 7, 5, 3200, 2, 80, pos)
       );
     });
 
@@ -172,7 +176,8 @@ export class MonsterSpawnEngine {
     ];
     komodoSpawns.forEach((pos, idx) => {
       this.monsters.push(
-        this.createKomodo(`komodo-${idx + 1}`, `Canyon Bayawak #${idx + 1}`, 12, 10, 8500, 95, 420, pos)
+        // Komodo: 5 $PISO, 200 EXP
+        this.createKomodo(`komodo-${idx + 1}`, `Canyon Bayawak #${idx + 1}`, 12, 10, 8500, 5, 200, pos)
       );
     });
 
@@ -184,7 +189,8 @@ export class MonsterSpawnEngine {
     ];
     hyenaSpawns.forEach((pos, idx) => {
       this.monsters.push(
-        this.createHyena(`hyena-${idx + 1}`, `Cyber Mountain Askal #${idx + 1}`, 17, 15, 18000, 240, 950, pos)
+        // Hyena: 10 $PISO, 400 EXP
+        this.createHyena(`hyena-${idx + 1}`, `Cyber Mountain Askal #${idx + 1}`, 17, 15, 18000, 10, 400, pos)
       );
     });
 

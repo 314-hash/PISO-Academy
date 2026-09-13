@@ -78,13 +78,21 @@ export class MultiplayerNetworkEngine implements MultiplayerProvider {
       this.isConnected = true;
       this.setConnectionStatus('connected');
 
-      // 3. Broadcast Join Packet to announce arrival to all existing peers
+      // 3. Broadcast Join Packet and Request Snapshot from all existing peers
       this.broadcastPacket({
         type: 'player_join',
         roomId: this.currentRoomId,
         senderId: this.localPlayer.playerId,
         timestamp: Date.now(),
         payload: this.localPlayer,
+      });
+
+      this.broadcastPacket({
+        type: 'request_snapshot',
+        roomId: this.currentRoomId,
+        senderId: this.localPlayer.playerId,
+        timestamp: Date.now(),
+        payload: { requesterId: this.localPlayer.playerId },
       });
 
       // 4. Start Heartbeat & Stale Watchdog
@@ -307,15 +315,58 @@ export class MultiplayerNetworkEngine implements MultiplayerProvider {
           this.remotePlayers.set(player.playerId, player);
           if (isNew) {
             this.emit('onPlayerJoin', player);
-            // Respond with own state so the newcomer immediately discovers us!
-            if (this.localPlayer) {
-              this.broadcastPacket({
-                type: 'player_sync',
-                roomId: this.currentRoomId,
-                senderId: this.localPlayer.playerId,
-                timestamp: Date.now(),
-                payload: this.localPlayer,
-              });
+          }
+          // Always respond with own state so the newcomer immediately discovers us
+          if (this.localPlayer) {
+            this.broadcastPacket({
+              type: 'player_sync',
+              roomId: this.currentRoomId,
+              senderId: this.localPlayer.playerId,
+              timestamp: Date.now(),
+              payload: this.localPlayer,
+            });
+          }
+        }
+        break;
+      }
+
+      case 'request_snapshot': {
+        // Send our local player state to the newcomer
+        if (this.localPlayer) {
+          this.broadcastPacket({
+            type: 'player_sync',
+            roomId: this.currentRoomId,
+            senderId: this.localPlayer.playerId,
+            timestamp: Date.now(),
+            payload: this.localPlayer,
+          });
+        }
+        // If we know about other peers, send full player snapshot
+        if (this.remotePlayers.size > 0) {
+          this.broadcastPacket({
+            type: 'player_snapshot',
+            roomId: this.currentRoomId,
+            senderId: this.localPlayer ? this.localPlayer.playerId : 'system',
+            timestamp: Date.now(),
+            payload: { players: Array.from(this.remotePlayers.values()) },
+          });
+        }
+        break;
+      }
+
+      case 'player_snapshot': {
+        const payload = packet.payload as { players: RemotePlayerState[] };
+        if (payload?.players && Array.isArray(payload.players)) {
+          for (const p of payload.players) {
+            if (p.playerId && p.playerId !== this.localPlayer?.playerId) {
+              const isNew = !this.remotePlayers.has(p.playerId);
+              this.remotePlayers.set(p.playerId, p);
+              this.peerLastSeen.set(p.playerId, Date.now());
+              if (isNew) {
+                this.emit('onPlayerJoin', p);
+              } else {
+                this.emit('onPlayerUpdate', p);
+              }
             }
           }
         }

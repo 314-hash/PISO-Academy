@@ -78,11 +78,11 @@ export class PisoEconomyService {
 
     const defaultState: FarmingStats = {
       totalFarmSupply: 100_000_000,
-      totalHarvested: 14_850_200,
-      userStakedBalance: 500,
-      userPendingHarvest: 125.4,
-      userFarmingApr: 28.5,
-      idleEarnRatePerMinute: 1.5,
+      totalHarvested: 14_850_200,  // Simulated circulated supply after ~3 years
+      userStakedBalance: 50,       // Reasonable starting staked balance
+      userPendingHarvest: 0.5,     // New player starts with tiny pending
+      userFarmingApr: 12.5,        // More realistic APR (not 28.5%)
+      idleEarnRatePerMinute: 0.001, // ~0.06 PISO/hr idle earn for novices
     };
     this.saveFarmingStats(defaultState);
     return defaultState;
@@ -747,12 +747,12 @@ export class PisoEconomyService {
       itemName = weapon.name;
       // Price calculation based on rarity and enhancement
       const basePrices: Record<string, number> = {
-        Common: 50,
-        Uncommon: 120,
-        Rare: 280,
-        Epic: 650,
-        Legendary: 1500,
-        Mythical: 3500,
+        Common: 2,
+        Uncommon: 5,
+        Rare: 10,
+        Epic: 20,
+        Legendary: 40,
+        Mythical: 75,
       };
       const base = basePrices[weapon.rarity] || 150;
       earnedPiso = Math.round(base * (1 + (weapon.enhancementLevel || 0) * 0.15));
@@ -768,11 +768,11 @@ export class PisoEconomyService {
 
       itemName = relic.name;
       const baseRelicPrices: Record<string, number> = {
-        Common: 40,
-        Uncommon: 90,
-        Rare: 200,
-        Epic: 450,
-        Legendary: 1100,
+        Common: 1,
+        Uncommon: 3,
+        Rare: 5,
+        Epic: 10,
+        Legendary: 20,
       };
       const unitPrice = baseRelicPrices[relic.rarity] || 100;
       earnedPiso = unitPrice * count;
@@ -781,10 +781,10 @@ export class PisoEconomyService {
       localStorage.setItem(STORAGE_KEYS.RELICS, JSON.stringify(relics));
       window.dispatchEvent(new CustomEvent('piso-relic-updated', { detail: { relicId: numId, newCount: relic.count } }));
     } else if (itemType === 'block') {
-      // Selling blocks
+      // Selling blocks: 0.1 $PISO per block (blocks are plentiful)
       const blockName = String(itemId);
       itemName = `${count}x ${blockName} Block`;
-      const blockRate = 12; // 12 $PISO per block buyback
+      const blockRate = 0.1; // 0.1 $PISO per block buyback
       earnedPiso = blockRate * count;
     }
 

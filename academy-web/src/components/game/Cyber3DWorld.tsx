@@ -27,6 +27,7 @@ import { MultiplayerNetworkEngine } from '../../services/multiplayer/Multiplayer
 import { RemotePlayerState, PlayerMovementAnimState } from '../../types/multiplayer';
 import { PlayerProgressionEngine } from '../../services/playerProgressionEngine';
 import { InputManager } from '../../controls/InputManager';
+import { SaveStateEngine } from '../../services/SaveStateEngine';
 
 export interface DistrictInfo {
   id: string;
@@ -511,9 +512,15 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     // 8. Dynamic Player Builder Avatar (Humanoid Builder vs Recon Drone)
     const droneGroup = new THREE.Group();
-    const spawnX = typeof playerPosRef.current?.x === 'number' ? playerPosRef.current.x : 0;
-    const spawnZ = typeof playerPosRef.current?.z === 'number' ? playerPosRef.current.z : 8;
-    droneGroup.position.set(spawnX, avatarMode === 'human' || avatarMode === 'custom_glb' ? 0.05 : 1.4, spawnZ);
+    let droneHeading = 0;
+    const savedPos = PlayerProgressionEngine.getProfile().savedPosition;
+    const spawnX = typeof playerPosRef.current?.x === 'number' ? playerPosRef.current.x : (savedPos?.x ?? 0);
+    const spawnZ = typeof playerPosRef.current?.z === 'number' ? playerPosRef.current.z : (savedPos?.z ?? 8);
+    droneGroup.position.set(spawnX, avatarMode === 'human' || avatarMode === 'custom_glb' ? (savedPos?.y ?? 0.05) : 1.4, spawnZ);
+    if (savedPos?.heading) {
+      droneHeading = savedPos.heading;
+      droneGroup.rotation.y = droneHeading;
+    }
 
     let droneRing: THREE.Mesh | null = null;
     let characterInstance: CharacterMeshInstance | null = null;
@@ -1317,7 +1324,23 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT' ||
+        target?.isContentEditable ||
+        !!target?.closest?.('input, textarea, select, [contenteditable="true"]') ||
+        (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable))
+      ) {
+        keys.w = false;
+        keys.s = false;
+        keys.a = false;
+        keys.d = false;
+        keys.shift = false;
+        keys.space = false;
+        return;
+      }
 
       const k = e.key.toLowerCase();
       const kb = controlSettingsRef.current.keybinds || DEFAULT_KEYBINDS;
@@ -1363,6 +1386,13 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       // Builder Mode Toggle (Default 'v')
       if (k === (kb.builderMode || 'v').toLowerCase()) {
         activeMiningEngine.builderMode = !activeMiningEngine.builderMode;
+        return;
+      }
+
+      // Rotate Placed Structure in Builder Mode: 'r'
+      if (k === 'r' && activeMiningEngine.builderMode) {
+        activeMiningEngine.rotateStructure();
+        SoundFX.playBlip?.();
         return;
       }
 
@@ -1416,7 +1446,15 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           const bx = droneGroup.position.x + Math.sin(droneHeading) * buildDist;
           const bz = droneGroup.position.z - Math.cos(droneHeading) * buildDist;
           const buildPos = new THREE.Vector3(bx, 0, bz);
-          activeMiningEngine.placeBlock(activeMiningEngine.selectedBlockType, buildPos);
+          if (activeMiningEngine.placementMode === 'structure') {
+            activeMiningEngine.buildStructure(
+              activeMiningEngine.selectedStructureCategory,
+              buildPos,
+              activeMiningEngine.structureModifications
+            );
+          } else {
+            activeMiningEngine.placeBlock(activeMiningEngine.selectedBlockType, buildPos);
+          }
           return;
         }
 
@@ -1588,6 +1626,20 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         // 3. Fallback: Raycast to ground floor
         const intersects = raycaster.intersectObject(floor);
         if (intersects.length > 0) {
+          if (activeMiningEngine.builderMode) {
+            const pt = intersects[0].point;
+            if (activeMiningEngine.placementMode === 'structure') {
+              activeMiningEngine.buildStructure(
+                activeMiningEngine.selectedStructureCategory,
+                pt,
+                activeMiningEngine.structureModifications
+              );
+            } else {
+              activeMiningEngine.placeBlock(activeMiningEngine.selectedBlockType, pt);
+            }
+            return;
+          }
+
           targetPos = intersects[0].point;
           pendingInteractRef.current = null;
           targetMentorIndex = -1;
@@ -1617,6 +1669,13 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(mouse, camera);
+
+        if (activeMiningEngine.builderMode) {
+          const intersects = raycaster.intersectObject(floor);
+          if (intersects.length > 0) {
+            activeMiningEngine.updateGhostBlock(intersects[0].point, true);
+          }
+        }
 
         let isOverInteractive = false;
         for (const { mesh } of npcMeshes) {
@@ -1720,7 +1779,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     // 13. Animation Loop
     let animationFrameId: number;
     let clock = new THREE.Clock();
-    let droneHeading = 0;
+    droneHeading = savedPos?.heading ?? droneHeading;
     let miningTimer = 0;
 
     const animate = () => {
@@ -2393,6 +2452,16 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           },
           timestamp: Date.now(),
         });
+
+        if (isTraveling) {
+          SaveStateEngine.get().debouncePositionSave({
+            x: droneGroup.position.x,
+            y: droneGroup.position.y,
+            z: droneGroup.position.z,
+            heading: droneHeading,
+            zone: activeNearbyDistrictRef.current?.id || 'genesis',
+          });
+        }
       } catch (err) {}
 
       // 14. Camera Handling (Isometric Chase vs Follow vs Top-Down)
@@ -2454,6 +2523,11 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       if (waveScale > 40) waveScale = 0.5;
       blockWave.scale.set(waveScale, waveScale, 1);
       (blockWave.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 1 - waveScale / 40);
+
+      // Active Mining & Building Block Engine Update
+      if (activeMiningEngine) {
+        activeMiningEngine.update(delta);
+      }
 
       // 15. Proximity Detection (Mentors & Districts) - Suppressed while traveling via targetPos
       let foundNearbyMentor: NPCLocationInfo | null = null;

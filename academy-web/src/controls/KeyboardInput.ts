@@ -51,13 +51,19 @@ export class KeyboardInput {
   private handleKeyDown(e: KeyboardEvent) {
     if (!this.isEnabled) return;
 
-    // Ignore keyboard input when player is typing in form elements
+    // Ignore keyboard input when player is typing in form elements or chat
     const target = e.target as HTMLElement;
-    if (
-      target.tagName === 'INPUT' ||
-      target.tagName === 'TEXTAREA' ||
-      target.isContentEditable
-    ) {
+    const activeEl = document.activeElement as HTMLElement | null;
+    const isTyping =
+      target?.tagName === 'INPUT' ||
+      target?.tagName === 'TEXTAREA' ||
+      target?.tagName === 'SELECT' ||
+      target?.isContentEditable ||
+      !!target?.closest?.('input, textarea, select, [contenteditable="true"]') ||
+      (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable));
+
+    if (isTyping) {
+      this.clearKeys();
       return;
     }
 

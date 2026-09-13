@@ -44,13 +44,20 @@ import {
   Check,
   Share2,
   Github,
+  Eye,
+  EyeOff,
+  Copy,
 } from 'lucide-react';
 import { PISO_NETWORK } from '../../pisoConfig';
+import { WalletService } from '../../services/walletService';
+
+import { AccountSessionService, SecurityNotification } from '../../services/AccountSessionService';
+import { ShieldCheck, ShieldAlert, Key, Clock, UserCheck, Bell, Trash2, Edit3 } from 'lucide-react';
 
 export interface PlayerProfileModalProps {
   isOpen?: boolean;
   onClose?: () => void;
-  initialTab?: 'overview' | 'skills' | 'quests' | 'achievements' | 'records' | 'contracts';
+  initialTab?: 'overview' | 'skills' | 'quests' | 'achievements' | 'records' | 'contracts' | 'security';
   isInline?: boolean;
 }
 
@@ -62,7 +69,7 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
 }) => {
   const { wallet, humanAvatar, setNotification, certificates, deployments, setActiveView } = useAcademy();
   const [profile, setProfile] = useState<PlayerProfileState>(() => PlayerProgressionEngine.getProfile());
-  const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'quests' | 'achievements' | 'records' | 'contracts'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'quests' | 'achievements' | 'records' | 'contracts' | 'security'>(initialTab);
 
   // Skill Tree Branch Filter
   const [selectedBranch, setSelectedBranch] = useState<SkillTreeBranch>('technology');
@@ -74,10 +81,60 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
   const [selectedAchFilter, setSelectedAchFilter] = useState<string>('all');
 
   const [copied, setCopied] = useState(false);
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [newUsernameInput, setNewUsernameInput] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameSuccess, setUsernameSuccess] = useState('');
+  const [securityNotifs, setSecurityNotifs] = useState<SecurityNotification[]>(() =>
+    AccountSessionService.get().getNotifications()
+  );
+
+  // Sovereign Device Wallet & Secure Key Reveal state
+  const [showPrivKey, setShowPrivKey] = useState(false);
+  const [privKeyTimer, setPrivKeyTimer] = useState(0);
+  const [copiedPrivKey, setCopiedPrivKey] = useState(false);
+  const [copiedDeviceAddr, setCopiedDeviceAddr] = useState(false);
+
+  useEffect(() => {
+    let interval: any;
+    if (showPrivKey && privKeyTimer > 0) {
+      interval = setInterval(() => {
+        setPrivKeyTimer((prev) => {
+          if (prev <= 1) {
+            setShowPrivKey(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showPrivKey, privKeyTimer]);
 
   // Reload profile state when modal opens or profile changes
   const refreshProfile = () => {
     setProfile(PlayerProgressionEngine.getProfile());
+    setSecurityNotifs(AccountSessionService.get().getNotifications());
+  };
+
+  const handleUpdateUsername = () => {
+    setUsernameError('');
+    setUsernameSuccess('');
+    const res = PlayerProgressionEngine.changeUsername(newUsernameInput);
+    if (res.success) {
+      setUsernameSuccess(res.message);
+      SoundFX.playLevelUp();
+      refreshProfile();
+      setTimeout(() => {
+        setIsEditingUsername(false);
+        setUsernameSuccess('');
+      }, 2000);
+    } else {
+      setUsernameError(res.message);
+      SoundFX.playLaser();
+    }
   };
 
   useEffect(() => {
@@ -211,8 +268,28 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-black text-white font-sans tracking-tight">
-                {humanAvatar?.name || profile.username}
+                {profile.username}
               </h1>
+              {profile.usernameChangeUsed ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-800/80 text-slate-400 border border-slate-700 flex items-center space-x-1" title="Ang username ay permanenteng nakakandado.">
+                  <Lock className="w-3 h-3 text-slate-400" />
+                  <span>Kandado</span>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewUsernameInput(profile.username);
+                    setIsEditingUsername(true);
+                    setUsernameError('');
+                  }}
+                  className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 hover:bg-cyan-500/30 flex items-center space-x-1 transition-colors"
+                  title="Maaari mo lamang palitan ang iyong username nang 1 beses!"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>1 Palit Naiwan</span>
+                </button>
+              )}
               {/* Filipino Rank Pill */}
               <span
                 className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black border flex items-center space-x-1 shadow-sm uppercase tracking-wider"
@@ -393,6 +470,21 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
         >
           <Layers className="w-4 h-4" />
           <span>Katunayan & Devnet</span>
+        </button>
+
+        <button
+          onClick={() => {
+            SoundFX.playClick();
+            setActiveTab('security');
+          }}
+          className={`px-4 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center space-x-2 transition-all shrink-0 ${
+            activeTab === 'security'
+              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-glow font-black'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-cyan-400" />
+          <span>Seguridad & Account</span>
         </button>
       </div>
 
@@ -1150,6 +1242,379 @@ export const PlayerProfileModal: React.FC<PlayerProfileModalProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 7: ACCOUNT SECURITY & NOTIFICATIONS */}
+        {/* ========================================================= */}
+        {activeTab === 'security' && (
+          <div className="space-y-6 animate-fade-in font-mono text-sm">
+            {/* 1. Account Status Summary Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-2xl bg-[#161F30]/90 border border-cyan-500/30">
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Account Status</span>
+                </div>
+                <div className="text-sm font-bold text-white mt-1 flex items-center space-x-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Aktibo & Beripikado</span>
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1 truncate">
+                  ID: {profile.accountId || 'acc_genesis_juan'}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#161F30]/90 border border-slate-800">
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                  <Coins className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Naka-konektang Wallet</span>
+                </div>
+                <div className="text-sm font-bold text-amber-300 mt-1 truncate">
+                  {wallet.address ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}` : 'Walang Naka-link'}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  Uri: {wallet.type === 'injected' ? 'MetaMask' : 'PISO Dev Keypair'}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#161F30]/90 border border-slate-800">
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                  <Clock className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Huling Login / Sesyon</span>
+                </div>
+                <div className="text-sm font-bold text-blue-300 mt-1">
+                  {profile.lastLoginAt ? new Date(profile.lastLoginAt).toLocaleTimeString() : 'Kasalukuyan'}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  Local Sovereign Browser
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-[#161F30]/90 border border-slate-800">
+                <div className="text-[10px] text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                  <Lock className="w-3.5 h-3.5 text-purple-400" />
+                  <span>Username Policy</span>
+                </div>
+                <div className="text-sm font-bold mt-1">
+                  {profile.usernameChangeUsed ? (
+                    <span className="text-rose-400">🔒 Kandado</span>
+                  ) : (
+                    <span className="text-emerald-400">1 Palit Naiwan</span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-500 mt-1">
+                  {profile.usernameChangeUsed ? 'Nagamit na ang 1 palit' : 'Maaari pang baguhin'}
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Sovereign Device Wallet & Secure Private Key Revealer */}
+            {(() => {
+              const devWallet = WalletService.getDeviceWallet();
+              const storedKey = WalletService.getStoredBurnerKey() || devWallet.privateKey;
+              return (
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-[#161F30]/95 via-[#0F172A] to-[#161F30]/90 border border-amber-500/30 space-y-4 shadow-xl shadow-black/40">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-black">
+                        🔑
+                      </div>
+                      <div>
+                        <div className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                          <span>Sovereign Device Wallet & Susi</span>
+                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
+                            Permanent (Per-Device)
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          Isang permanenteng non-custodial wallet kada browser. Hindi na kailanman muling mag-iiba.
+                        </div>
+                      </div>
+                    </div>
+
+                    <a
+                      href={`${PISO_NETWORK.explorerUrl}/address/${devWallet.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center space-x-1 transition-colors self-start sm:self-auto"
+                    >
+                      <span>PISO Explorer</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  {/* Device Address Display */}
+                  <div className="p-3.5 rounded-xl bg-[#0B0F17] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] uppercase font-mono text-slate-400">Address ng Device:</div>
+                      <div className="font-mono text-xs text-amber-300 font-bold truncate mt-0.5 select-all">
+                        {devWallet.address}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(devWallet.address);
+                        setCopiedDeviceAddr(true);
+                        setTimeout(() => setCopiedDeviceAddr(false), 2000);
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono flex items-center space-x-1.5 transition-colors shrink-0"
+                    >
+                      {copiedDeviceAddr ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedDeviceAddr ? 'Na-kopya!' : 'Kopyahin'}</span>
+                    </button>
+                  </div>
+
+                  {/* Private Key Reveal Section */}
+                  <div className="p-3.5 rounded-xl bg-black/40 border border-slate-800/90 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] uppercase font-mono text-slate-400 flex items-center gap-1.5">
+                        <Key className="w-3 h-3 text-amber-400" />
+                        <span>Sovereign Private Key (Raw Hex)</span>
+                      </div>
+                      {showPrivKey && privKeyTimer > 0 && (
+                        <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30 animate-pulse">
+                          Awtomatikong itatago sa loob ng {privKeyTimer}s
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={
+                          showPrivKey
+                            ? storedKey
+                            : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'
+                        }
+                        className={`flex-1 px-3 py-2 rounded-xl bg-[#0B0F17] border text-xs font-mono focus:outline-none transition-colors select-all ${
+                          showPrivKey
+                            ? 'border-amber-500/60 text-amber-300 bg-amber-950/10'
+                            : 'border-slate-800 text-slate-500'
+                        }`}
+                      />
+                      <div className="flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!showPrivKey) {
+                              setShowPrivKey(true);
+                              setPrivKeyTimer(30);
+                            } else {
+                              setShowPrivKey(false);
+                              setPrivKeyTimer(0);
+                            }
+                          }}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-bold font-mono flex items-center space-x-1.5 transition-all shrink-0 ${
+                            showPrivKey
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 hover:bg-amber-500/30'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                          }`}
+                        >
+                          {showPrivKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          <span>{showPrivKey ? 'Itago' : 'Ipakita'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={!showPrivKey}
+                          onClick={() => {
+                            if (!storedKey) return;
+                            navigator.clipboard.writeText(storedKey);
+                            setCopiedPrivKey(true);
+                            setTimeout(() => setCopiedPrivKey(false), 2500);
+                          }}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-bold font-mono flex items-center space-x-1.5 transition-all shrink-0 ${
+                            showPrivKey
+                              ? copiedPrivKey
+                                ? 'bg-emerald-500 text-slate-950'
+                                : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40'
+                              : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
+                          }`}
+                        >
+                          {copiedPrivKey ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedPrivKey ? 'Na-kopya!' : 'Kopyahin'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Security Warning */}
+                    <div className="p-3 rounded-lg bg-rose-950/20 border border-rose-500/30 flex items-start space-x-2 text-[11px] text-rose-300 leading-relaxed">
+                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>Babala sa Seguridad:</strong> Huwag kailanman ibahagi ang iyong Private Key kahit kanino! Sinumang may access dito ay maaaring ilipat ang lahat ng iyong mga token, NFT, at smart contracts.
+                      </span>
+                    </div>
+
+                    {/* Quick Import Guide */}
+                    <div className="text-[11px] text-slate-400 space-y-1 bg-[#0B0F17]/60 p-3 rounded-lg border border-slate-800/80">
+                      <div className="font-bold text-slate-200">Paano i-import sa MetaMask / Rabby / Bitget:</div>
+                      <ol className="list-decimal list-inside space-y-0.5 text-slate-400 text-[10px] font-mono">
+                        <li>I-click ang <strong>"Ipakita"</strong> at <strong>"Kopyahin"</strong> sa itaas.</li>
+                        <li>Buksan ang MetaMask / Rabby Wallet &rarr; Profile &rarr; <em>Import Account</em>.</li>
+                        <li>I-paste ang Private Key at magkonekta sa PISO Chain (Chain ID: 202600101).</li>
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 3. Username Management Card */}
+            <div className="p-5 rounded-2xl bg-[#161F30]/80 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Edit3 className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Pamamahala ng Username (Isang Beses Lamang)
+                  </span>
+                </div>
+                {profile.usernameChangeUsed && (
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center space-x-1">
+                    <Lock className="w-3 h-3" />
+                    <span>Permanenteng Nakakandado</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#0B0F17] border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] text-slate-400">Kasalukuyang Username:</div>
+                  <div className="text-lg font-bold text-white font-mono mt-0.5">{profile.username}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    {profile.usernameChangeUsed
+                      ? `Pinalitan noong: ${profile.usernameChangedAt ? new Date(profile.usernameChangedAt).toLocaleDateString() : 'N/A'}`
+                      : 'Maaari mo lamang palitan ang iyong username nang ISANG BESES kada account.'}
+                  </div>
+                </div>
+
+                {!profile.usernameChangeUsed && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewUsernameInput(profile.username);
+                      setIsEditingUsername(true);
+                      setUsernameError('');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] shrink-0"
+                  >
+                    ✏️ Palitan ang Username
+                  </button>
+                )}
+              </div>
+
+              {/* Inline Edit Form */}
+              {isEditingUsername && !profile.usernameChangeUsed && (
+                <div className="p-4 rounded-xl bg-cyan-950/40 border border-cyan-500/50 space-y-3 animate-fade-in">
+                  <div className="text-xs text-amber-300 font-bold flex items-center space-x-1.5">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                    <span>Babala: Isang beses lamang ito maaaring palitan!</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={newUsernameInput}
+                      onChange={(e) => setNewUsernameInput(e.target.value)}
+                      placeholder="Bagong username (3-20 characters)..."
+                      className="flex-1 px-3 py-2 rounded-xl bg-[#0B0F17] border border-slate-700 text-white text-xs font-mono focus:border-cyan-400 focus:outline-none"
+                    />
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={handleUpdateUsername}
+                        className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors"
+                      >
+                        I-kumpirma
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingUsername(false)}
+                        className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition-colors"
+                      >
+                        Kanselahin
+                      </button>
+                    </div>
+                  </div>
+                  {usernameError && <div className="text-xs text-rose-400 font-bold">{usernameError}</div>}
+                  {usernameSuccess && <div className="text-xs text-emerald-400 font-bold">{usernameSuccess}</div>}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Security Event Log & Notifications Center */}
+            <div className="p-5 rounded-2xl bg-[#161F30]/80 border border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Bell className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Persistent Security & Account Event Log ({securityNotifs.length})
+                  </span>
+                </div>
+                {securityNotifs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      AccountSessionService.get().clearNotifications();
+                      setSecurityNotifs([]);
+                    }}
+                    className="text-[10px] text-slate-400 hover:text-rose-400 flex items-center space-x-1 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>I-clear ang Log</span>
+                  </button>
+                )}
+              </div>
+
+              {securityNotifs.length === 0 ? (
+                <div className="p-6 text-center text-slate-500 rounded-xl bg-[#0B0F17]/50 border border-slate-800 text-xs">
+                  Walang naitalang mga alerto sa seguridad. Ligtas ang iyong account!
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {securityNotifs.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3 rounded-xl bg-[#0B0F17] border border-slate-800/80 flex items-start space-x-3 text-xs"
+                    >
+                      <span className="text-base mt-0.5">
+                        {item.type === 'new_login' || item.type === 'session_restored'
+                          ? '🔐'
+                          : item.type === 'wallet_connected'
+                          ? '🔗'
+                          : item.type === 'wallet_changed'
+                          ? '⚠️'
+                          : item.type === 'username_changed'
+                          ? '👤'
+                          : '🛡️'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-white truncate">{item.title}</span>
+                          <span className="text-[10px] text-slate-500 shrink-0">
+                            {new Date(item.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">{item.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Privacy & Non-Custodial Assurance Banner */}
+            <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 flex items-center space-x-3 text-xs text-emerald-300">
+              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div>
+                <span className="font-bold">Seguridad ng PISO Sovereign: </span>
+                <span>
+                  Hindi kailanman inilalantad o iniimbak ng PISO Academy ang iyong private keys o seed phrases sa plaintext sa server o console. Ang iyong wallet credentials ay nananatiling kontrolado mo.
+                </span>
+              </div>
             </div>
           </div>
         )}

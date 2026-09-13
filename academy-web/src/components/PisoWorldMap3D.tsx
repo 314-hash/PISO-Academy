@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import { useAcademy } from '../context/AcademyContext';
 import { SoundFX } from '../services/soundFX';
 import { PISO_ECOSYSTEM_NODES, PisoEcosystemNode } from '../data/pisoEcosystemNodes';
+import { MultiplayerNetworkEngine } from '../services/multiplayer/MultiplayerNetworkEngine';
+import { RemotePlayerState } from '../types/multiplayer';
+import { DISTRICTS } from './game/Cyber3DWorld';
 import {
   Globe,
   ExternalLink,
@@ -23,6 +26,14 @@ import {
   Search,
   Filter,
   Key,
+  Users,
+  Radio,
+  Signal,
+  MessageSquare,
+  Swords,
+  Copy,
+  Check,
+  Send,
 } from 'lucide-react';
 
 // Math utility to convert latitude & longitude into 3D Cartesian coordinates on a sphere of radius R
@@ -76,6 +87,20 @@ function generateContinentParticles(radius: number): THREE.Vector3[] {
   return points;
 }
 
+// Helper to locate nearest district name for coordinates
+function getNearestDistrictName(x: number, z: number): string {
+  let nearestName = 'Genesis Plaza';
+  let minDistance = Infinity;
+  for (const d of DISTRICTS) {
+    const dist = Math.hypot(x - d.pos[0], z - d.pos[1]);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearestName = d.name;
+    }
+  }
+  return `${nearestName} (${Math.round(x)}, ${Math.round(z)})`;
+}
+
 export const PisoWorldMap3D: React.FC = () => {
   const {
     claimedEcosystemRewards,
@@ -95,6 +120,71 @@ export const PisoWorldMap3D: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showOnlyUnclaimed, setShowOnlyUnclaimed] = useState<boolean>(false);
   const [isHoveredOverNode, setIsHoveredOverNode] = useState<string | null>(null);
+
+  // Multiplayer Metaverse state & peers
+  const [activeMapTab, setActiveMapTab] = useState<'ecosystem' | 'multiplayer'>('ecosystem');
+  const [remotePlayers, setRemotePlayers] = useState<RemotePlayerState[]>([]);
+  const [multiplayerStatus, setMultiplayerStatus] = useState<string>('connected');
+  const [interactionToast, setInteractionToast] = useState<string | null>(null);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncPlayers = () => {
+      try {
+        const peers = Array.from(MultiplayerNetworkEngine.instance.getRemotePlayers().values());
+        setRemotePlayers(peers);
+        setMultiplayerStatus(MultiplayerNetworkEngine.instance.getConnectionStatus());
+      } catch {}
+    };
+
+    syncPlayers();
+    const interval = setInterval(syncPlayers, 1000);
+
+    const onJoin = () => syncPlayers();
+    const onLeave = () => syncPlayers();
+    const onUpdate = () => syncPlayers();
+
+    MultiplayerNetworkEngine.instance.on('onPlayerJoin', onJoin);
+    MultiplayerNetworkEngine.instance.on('onPlayerLeave', onLeave);
+    MultiplayerNetworkEngine.instance.on('onPlayerUpdate', onUpdate);
+
+    return () => {
+      clearInterval(interval);
+      MultiplayerNetworkEngine.instance.off('onPlayerJoin', onJoin);
+      MultiplayerNetworkEngine.instance.off('onPlayerLeave', onLeave);
+      MultiplayerNetworkEngine.instance.off('onPlayerUpdate', onUpdate);
+    };
+  }, []);
+
+  const handleWave = (player: RemotePlayerState) => {
+    SoundFX.playClick();
+    MultiplayerNetworkEngine.instance.sendEmote('wave');
+    MultiplayerNetworkEngine.instance.sendChatMessage(`Kumusta, ${player.username}! 👋`, false);
+    setInteractionToast(`Nag-wave ka kay ${player.username}! 👋`);
+    setTimeout(() => setInteractionToast(null), 3500);
+  };
+
+  const handleDuelChallenge = (player: RemotePlayerState) => {
+    SoundFX.playClick();
+    MultiplayerNetworkEngine.instance.sendInteraction(player.playerId, 'duel_challenge');
+    setInteractionToast(`Hamon sa Duel naipadala kay ${player.username}! ⚔️`);
+    setTimeout(() => setInteractionToast(null), 3500);
+  };
+
+  const handleBroadcastWave = () => {
+    SoundFX.playClick();
+    MultiplayerNetworkEngine.instance.sendEmote('wave');
+    MultiplayerNetworkEngine.instance.sendChatMessage('Kumusta mga kapwa explorer sa Metaverse! 🇵🇭👋', false);
+    setInteractionToast('Nag-broadcast ka ng pagbati sa buong Metaverse! 📢👋');
+    setTimeout(() => setInteractionToast(null), 3500);
+  };
+
+  const handleCopy = (address: string) => {
+    SoundFX.playClick();
+    navigator.clipboard.writeText(address);
+    setCopiedAddress(address);
+    setTimeout(() => setCopiedAddress(null), 2500);
+  };
 
   const selectedNode = useMemo(
     () => PISO_ECOSYSTEM_NODES.find((n) => n.id === selectedNodeId) || PISO_ECOSYSTEM_NODES[0],
@@ -624,9 +714,276 @@ export const PisoWorldMap3D: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. ⭐ BEST HINT TO START: WALLET STUDIO HERO CALLOUT */}
-      <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-500/20 via-[#161F30] to-blue-900/20 border-2 border-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.25)] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in">
-        <div className="flex items-start space-x-3.5">
+      {/* Navigation Tabs: 3D Ecosystem Hubs vs Metaverse Campus Roster */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-[#0A0F1D] p-2.5 rounded-2xl border border-slate-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              SoundFX.playClick();
+              setActiveMapTab('ecosystem');
+            }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold flex items-center space-x-2 transition-all ${
+              activeMapTab === 'ecosystem'
+                ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <Globe className="w-4 h-4 text-cyan-400" />
+            <span>🌐 15 PISO Ecosystem Hubs & Rewards</span>
+          </button>
+
+          <button
+            onClick={() => {
+              SoundFX.playClick();
+              setActiveMapTab('multiplayer');
+            }}
+            className={`px-4 py-2.5 rounded-xl text-xs font-mono font-bold flex items-center space-x-2 transition-all ${
+              activeMapTab === 'multiplayer'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <Users className="w-4 h-4 text-emerald-400" />
+            <span>👥 Online Metaverse Students & Roster</span>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 text-[10px] font-mono border border-emerald-400/30">
+              {remotePlayers.length} Online
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center space-x-3 text-xs font-mono text-slate-400 px-2">
+          <span className="flex items-center space-x-1.5">
+            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <span className="text-slate-400">P2P Mesh:</span>
+            <span className="text-emerald-400 font-bold uppercase">{multiplayerStatus}</span>
+          </span>
+          <span className="text-slate-600">|</span>
+          <span className="text-slate-400">Silid: <strong className="text-cyan-300">genesis_academy_main</strong></span>
+        </div>
+      </div>
+
+      {/* Toast Feedback */}
+      {interactionToast && (
+        <div className="p-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-400 text-emerald-300 font-mono text-xs flex items-center justify-between animate-fade-in shadow-[0_0_25px_rgba(16,185,129,0.2)]">
+          <div className="flex items-center space-x-2.5">
+            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{interactionToast}</span>
+          </div>
+          <button onClick={() => setInteractionToast(null)} className="text-slate-400 hover:text-white">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* MULTIPLAYER ROSTER VIEW */}
+      {activeMapTab === 'multiplayer' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Network Diagnostics & Quick Controls Card */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-[#0C1525] via-[#111F35] to-[#0C1525] border border-cyan-500/30 shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center space-x-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 flex items-center justify-center text-2xl shrink-0">
+                  🛰️
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white flex items-center space-x-2">
+                    <span>Metaverse Real-Time Peer Registry</span>
+                    <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                      Synchronized (16 Hz)
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 font-sans mt-0.5">
+                    Lahat ng aktibong estudyante sa 3D Academy Metaverse. Maaaring magpadala ng emotes, makipag-duel, o mag-usap sa pamamagitan ng P2P data mesh.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <button
+                  onClick={handleBroadcastWave}
+                  className="flex-1 md:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 text-white font-mono text-xs font-bold uppercase flex items-center justify-center space-x-2 shadow-md transition-all active:scale-95"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Mag-broadcast ng Wave 👋</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-800/80 font-mono text-xs">
+              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                <span className="text-[11px] text-slate-400 block">Mga Kasamang Online:</span>
+                <span className="text-lg font-black text-emerald-400">{remotePlayers.length} Peers</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                <span className="text-[11px] text-slate-400 block">Iyong Karakter:</span>
+                <span className="text-sm font-bold text-cyan-300 truncate block mt-0.5">{levelTitle}</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                <span className="text-[11px] text-slate-400 block">Latency / Ping:</span>
+                <span className="text-sm font-bold text-emerald-400">~16 ms (Real-Time)</span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                <span className="text-[11px] text-slate-400 block">P2P Network Relays:</span>
+                <span className="text-[11px] text-amber-300 truncate block mt-0.5">BroadcastChannel + Gun</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Peer Grid or Solo Empty State */}
+          {remotePlayers.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {remotePlayers.map((player) => {
+                const zone = getNearestDistrictName(player.transform?.x || 0, player.transform?.z || 0);
+                const avatarIcon =
+                  player.avatarMode === 'custom_glb'
+                    ? '🤖'
+                    : player.avatarMode === 'drone'
+                    ? '🛸'
+                    : '🎓';
+                const avatarLabel =
+                  player.avatarMode === 'custom_glb'
+                    ? 'Custom 3D GLB'
+                    : player.avatarMode === 'drone'
+                    ? 'Recon Drone'
+                    : 'Sovereign Student';
+
+                return (
+                  <div
+                    key={player.playerId}
+                    className="p-5 rounded-3xl bg-[#0F172A] border-2 border-emerald-500/30 hover:border-emerald-400/60 shadow-xl space-y-4 transition-all"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-2xl shadow-inner">
+                          {avatarIcon}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="text-[10px] font-mono font-bold text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30 uppercase">
+                              {avatarLabel}
+                            </span>
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          </div>
+                          <h4 className="text-base font-black text-white mt-1">
+                            {player.username}
+                          </h4>
+                          <span className="text-xs font-mono text-cyan-300 font-bold">
+                            {player.rankTitle || 'PISO Cadet'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] font-mono text-slate-400 bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-700">
+                        {player.animState || 'idle'}
+                      </span>
+                    </div>
+
+                    {/* Location & Wallet Details */}
+                    <div className="space-y-2 pt-2 border-t border-slate-800/80 text-xs font-mono">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Lokasyon:</span>
+                        <span className="text-cyan-300 font-bold truncate max-w-[200px]" title={zone}>
+                          📍 {zone}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Wallet:</span>
+                        <div className="flex items-center space-x-1">
+                          <span className="text-amber-300 font-bold">
+                            {player.walletAddress
+                              ? `${player.walletAddress.slice(0, 6)}...${player.walletAddress.slice(-4)}`
+                              : '0x...Burner'}
+                          </span>
+                          {player.walletAddress && (
+                            <button
+                              onClick={() => handleCopy(player.walletAddress!)}
+                              className="p-1 rounded text-slate-400 hover:text-white transition-colors"
+                              title="Kopyahin ang Wallet Address"
+                            >
+                              {copiedAddress === player.walletAddress ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span className="text-slate-400">Coordinates:</span>
+                        <span className="text-slate-400">
+                          X: {Math.round(player.transform?.x || 0)}, Y: {Math.round(player.transform?.y || 0)}, Z: {Math.round(player.transform?.z || 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Interactive Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+                      <button
+                        onClick={() => handleWave(player)}
+                        className="py-2 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/50 text-cyan-300 font-mono text-xs font-bold flex items-center justify-center space-x-1.5 transition-all active:scale-95"
+                      >
+                        <span>👋 Kumaway</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleDuelChallenge(player)}
+                        className="py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono text-xs font-bold flex items-center justify-center space-x-1.5 transition-all active:scale-95"
+                      >
+                        <Swords className="w-3.5 h-3.5" />
+                        <span>⚔️ Hamunin</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-10 rounded-3xl bg-[#0B101D] border-2 border-dashed border-slate-800 text-center space-y-5">
+              <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 text-3xl flex items-center justify-center mx-auto shadow-glow">
+                🧑‍🚀
+              </div>
+              <div className="max-w-md mx-auto space-y-2">
+                <h4 className="text-lg font-black text-white">
+                  Ikaw Pa Lamang Ang Explorer Sa Silid Na Ito
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed font-sans">
+                  Kasalukuyan kang naka-connect sa <strong>genesis_academy_main</strong> silid. Upang makita ang real-time multi-peer sync, magbukas ng bagong browser tab o ibang browser (hal. Chrome + Edge o Incognito).
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 max-w-lg mx-auto text-left font-mono text-xs space-y-2">
+                <div className="text-amber-400 font-bold flex items-center space-x-1.5">
+                  <Sparkles className="w-4 h-4" />
+                  <span>Subukan ang Instant Discovery:</span>
+                </div>
+                <div className="text-slate-300 text-[11px] leading-relaxed">
+                  1. I-duplicate ang tab na ito sa iyong browser.<br/>
+                  2. Sa bagong tab, ilipat ang iyong karakter gamit ang W/A/S/D.<br/>
+                  3. Agad silang lilitaw sa 3D Metaverse, sa radar minimap, at dito sa World Roster nang walang delay!
+                </div>
+              </div>
+
+              <button
+                onClick={handleBroadcastWave}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:brightness-110 text-slate-950 font-mono text-xs font-black uppercase shadow-glow transition-all active:scale-95"
+              >
+                📢 Mag-Broadcast ng Signal sa Metaverse
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3D ECOSYSTEM VIEW */}
+      {activeMapTab === 'ecosystem' && (
+        <>
+          {/* 2. ⭐ BEST HINT TO START: WALLET STUDIO HERO CALLOUT */}
+          <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-500/20 via-[#161F30] to-blue-900/20 border-2 border-amber-400 shadow-[0_0_35px_rgba(245,158,11,0.25)] flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fade-in">
+            <div className="flex items-start space-x-3.5">
           <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center text-2xl font-black shadow-glow shrink-0">
             🔑
           </div>
@@ -1026,6 +1383,8 @@ export const PisoWorldMap3D: React.FC = () => {
           })}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

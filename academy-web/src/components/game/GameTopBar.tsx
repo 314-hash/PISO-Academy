@@ -15,6 +15,7 @@ import {
   Rocket,
   Key,
   Wallet,
+  Bell,
 } from 'lucide-react';
 import { PISO_NETWORK } from '../../pisoConfig';
 import { getRankForLevel } from '../../data/progressionMeta';
@@ -44,7 +45,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
   onOpenProfile,
   onOpenAvatarSelection,
 }) => {
-  const { wallet, xp, level, levelTitle, connectInjectedWallet, openConnectWalletModal, avatarMode, humanAvatar } = useAcademy();
+  const { wallet, xp, level, levelTitle, connectInjectedWallet, openConnectWalletModal, avatarMode, humanAvatar, saveStatus, unreadSecurityCount } = useAcademy();
 
   const [currentBlock, setCurrentBlock] = useState(125490);
   const [pulseActive, setPulseActive] = useState(false);
@@ -267,6 +268,29 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
             </button>
           )}
 
+          {/* Save Status Indicator */}
+          <div
+            className={`hidden lg:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-mono font-bold border transition-all ${
+              saveStatus === 'saved'
+                ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400'
+                : saveStatus === 'saving'
+                ? 'bg-cyan-950/40 border-cyan-500/40 text-cyan-300 animate-pulse'
+                : 'bg-amber-950/40 border-amber-500/40 text-amber-300'
+            }`}
+            title={saveStatus === 'saved' ? 'Lahat ng progreso ay naka-save.' : saveStatus === 'saving' ? 'Kasalukuyang nagse-save...' : 'Offline — naka-queue ang mga pagbabago'}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                saveStatus === 'saved'
+                  ? 'bg-emerald-400'
+                  : saveStatus === 'saving'
+                  ? 'bg-cyan-400 animate-ping'
+                  : 'bg-amber-400'
+              }`}
+            />
+            <span>{saveStatus === 'saved' ? '● Saved' : saveStatus === 'saving' ? '⟳ Saving...' : '⚠ Offline'}</span>
+          </div>
+
           {onOpenProfile && (
             <button
               onClick={() => {
@@ -279,6 +303,25 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
               <Shield className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
               <span className="hidden sm:inline">Profile</span>
               <span className="text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1 rounded border border-amber-400/30">P</span>
+            </button>
+          )}
+
+          {/* Security & Notification Bell */}
+          {onOpenProfile && (
+            <button
+              onClick={() => {
+                SoundFX.playClick();
+                onOpenProfile();
+              }}
+              title={`Account Security & Notifications (${unreadSecurityCount} hindi pa nabasa)`}
+              className="relative p-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 transition-colors shadow-sm"
+            >
+              <Bell className="w-4 h-4 text-cyan-400" />
+              {unreadSecurityCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+                  {unreadSecurityCount}
+                </span>
+              )}
             </button>
           )}
 

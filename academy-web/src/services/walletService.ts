@@ -30,7 +30,8 @@ export interface TokenBalanceItem {
   icon: string;
 }
 
-const BURNER_STORAGE_KEY = 'piso_academy_burner_wallet';
+const DEVICE_WALLET_STORAGE_KEY = 'piso_device_sovereign_wallet_v1';
+const LEGACY_BURNER_STORAGE_KEY = 'piso_academy_burner_wallet';
 
 export class WalletService {
   /**
@@ -99,33 +100,55 @@ export class WalletService {
   }
 
   /**
-   * Gets or creates a local ephemeral burner wallet for seamless student onboarding
+   * Strictly returns the single, permanent per-device sovereign Web3 wallet.
+   * Checks primary device storage first, then migrates any legacy key.
+   * NEVER generates a new wallet if one has ever been created on this browser/device!
    */
   static getOrCreateBurnerWallet(): { address: string; privateKey: string } {
-    let savedKey = localStorage.getItem(BURNER_STORAGE_KEY);
+    let savedKey = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY);
+
+    // Check legacy key for backward compatibility
+    if (!savedKey) {
+      savedKey = localStorage.getItem(LEGACY_BURNER_STORAGE_KEY);
+      if (savedKey) {
+        localStorage.setItem(DEVICE_WALLET_STORAGE_KEY, savedKey);
+      }
+    }
+
+    // Only if brand new on this browser/device, generate ONCE
     if (!savedKey) {
       const randomWallet = ethers.Wallet.createRandom();
       savedKey = randomWallet.privateKey;
-      localStorage.setItem(BURNER_STORAGE_KEY, savedKey);
+      localStorage.setItem(DEVICE_WALLET_STORAGE_KEY, savedKey);
+      localStorage.setItem(LEGACY_BURNER_STORAGE_KEY, savedKey);
     }
+
     const wallet = new ethers.Wallet(savedKey);
     return { address: wallet.address, privateKey: wallet.privateKey };
   }
 
   /**
-   * Gets the currently stored burner private key
+   * Alias to clearly indicate this is the per-device sovereign wallet.
    */
-  static getStoredBurnerKey(): string | null {
-    return localStorage.getItem(BURNER_STORAGE_KEY);
+  static getDeviceWallet(): { address: string; privateKey: string } {
+    return this.getOrCreateBurnerWallet();
   }
 
   /**
-   * Sets a custom private key as the active burner wallet
+   * Gets the currently stored sovereign device private key
+   */
+  static getStoredBurnerKey(): string | null {
+    return localStorage.getItem(DEVICE_WALLET_STORAGE_KEY) || localStorage.getItem(LEGACY_BURNER_STORAGE_KEY);
+  }
+
+  /**
+   * Sets a custom private key as the active device wallet
    */
   static setActiveBurnerWallet(privateKey: string): { address: string; privateKey: string } {
     const formatted = privateKey.trim().startsWith('0x') ? privateKey.trim() : `0x${privateKey.trim()}`;
     const wallet = new ethers.Wallet(formatted);
-    localStorage.setItem(BURNER_STORAGE_KEY, wallet.privateKey);
+    localStorage.setItem(DEVICE_WALLET_STORAGE_KEY, wallet.privateKey);
+    localStorage.setItem(LEGACY_BURNER_STORAGE_KEY, wallet.privateKey);
     return { address: wallet.address, privateKey: wallet.privateKey };
   }
 

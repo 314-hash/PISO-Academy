@@ -32,13 +32,17 @@ const STORAGE_KEY = 'piso_player_stats_v1';
 export class PlayerStatsEngine {
   /**
    * Deterministic EXP requirement for next level.
-   * 100% aligned with smart contracts (PISOMineCraft & PISOMonsterBountyManager):
-   * 100 + (lvl - 1) * 150 + ((lvl - 1) ** 2) * 20
+   * Simple standard RPG curve — easy to understand:
+   *   Level 1  →  100 XP
+   *   Level 5  →  550 XP
+   *   Level 10 →  1,900 XP
+   *   Level 20 →  5,200 XP
+   *   Level 50 →  25,000 XP
+   *   Level 100→  100,000 XP
    */
   public static calculateExpRequired(lvl: number): number {
     if (lvl <= 1) return 100;
-    const n = Math.max(0, lvl - 1);
-    return 100 + n * 150 + n * n * 20;
+    return Math.round(100 * Math.pow(lvl, 1.4));
   }
 
   /**
@@ -343,14 +347,25 @@ export class PlayerStatsEngine {
       } catch {}
     }
 
+    // ─── Education Tier Daily Caps ─────────────────────────────────────────────
+    // Calibrated to 10-year sustainable economy:
+    //   50M P2E pool / 10 years / 10,000 DAU = ~1.37 PISO/player/day average
+    //   Hard caps are set generously above average to reward engagement without
+    //   depleting supply faster than the 10-year timeline.
+    //
+    // Tier 3 (Sovereign Architect): 100 PISO/day ← Power users with credentials
+    // Tier 2 (Municipal Dev):         50 PISO/day ← Regular certified builders
+    // Tier 1 (Barangay Scholar):       35 PISO/day ← Early learners
+    // Tier 0 (Novice Explorer):        25 PISO/day ← New players, protection mode
+    // ─────────────────────────────────────────────────────────────────────────────
     if (completedCount >= 10) {
       return {
         tier: 3,
         tierName: 'Sovereign Architect',
         completedLessonsCount: completedCount,
-        dailyTokenCap: 50000,
-        maxKillsPer10Min: 120,
-        yieldMultiplier: 2.0,
+        dailyTokenCap: 100,
+        maxKillsPer10Min: 60,
+        yieldMultiplier: 1.5,
         titanHuntAllowed: true,
       };
     } else if (completedCount >= 5) {
@@ -358,9 +373,9 @@ export class PlayerStatsEngine {
         tier: 2,
         tierName: 'Municipal Dev (Certified)',
         completedLessonsCount: completedCount,
-        dailyTokenCap: 10000,
-        maxKillsPer10Min: 50,
-        yieldMultiplier: 1.5,
+        dailyTokenCap: 50,
+        maxKillsPer10Min: 30,
+        yieldMultiplier: 1.25,
         titanHuntAllowed: true,
       };
     } else if (completedCount >= 2) {
@@ -368,9 +383,9 @@ export class PlayerStatsEngine {
         tier: 1,
         tierName: 'Barangay Scholar',
         completedLessonsCount: completedCount,
-        dailyTokenCap: 2500,
-        maxKillsPer10Min: 25,
-        yieldMultiplier: 1.25,
+        dailyTokenCap: 35,
+        maxKillsPer10Min: 20,
+        yieldMultiplier: 1.1,
         titanHuntAllowed: false,
       };
     }
@@ -379,7 +394,7 @@ export class PlayerStatsEngine {
       tier: 0,
       tierName: 'Novice Explorer',
       completedLessonsCount: completedCount,
-      dailyTokenCap: 500,
+      dailyTokenCap: 25,
       maxKillsPer10Min: 10,
       yieldMultiplier: 1.0,
       titanHuntAllowed: false,

@@ -29,12 +29,17 @@ const LEGACY_STATS_KEY = 'piso_player_stats_v1';
 export class PlayerProgressionEngine {
   /**
    * Deterministic EXP requirement for next level.
-   * Matches smart contracts: 100 + (lvl - 1) * 150 + ((lvl - 1) ** 2) * 20
+   * Simple standard RPG curve — easy to understand:
+   *   Level 1  →  100 XP
+   *   Level 5  →  550 XP
+   *   Level 10 →  1,900 XP
+   *   Level 20 →  5,200 XP
+   *   Level 50 →  25,000 XP
+   *   Level 100→  100,000 XP
    */
   public static calculateExpRequired(lvl: number): number {
     if (lvl <= 1) return 100;
-    const n = Math.max(0, lvl - 1);
-    return 100 + n * 150 + n * n * 20;
+    return Math.round(100 * Math.pow(lvl, 1.4));
   }
 
   /**
@@ -185,6 +190,9 @@ export class PlayerProgressionEngine {
 
           return {
             ...parsed,
+            usernameChangeUsed: parsed.usernameChangeUsed ?? false,
+            createdAt: parsed.createdAt ?? Date.now(),
+            lastLoginAt: parsed.lastLoginAt ?? Date.now(),
             rank: rankDef.tier,
             secondaryAttributes: secondary,
             activeQuests: mergedQuests,
@@ -277,6 +285,9 @@ export class PlayerProgressionEngine {
       lastDailyReset: new Date().toISOString().slice(0, 10),
       classAbilityLastUsed: 0,
       statsAllocatedTotal: 0,
+      usernameChangeUsed: false,
+      createdAt: Date.now(),
+      lastLoginAt: Date.now(),
     };
 
     this.saveProfile(profile);
@@ -315,6 +326,9 @@ export class PlayerProgressionEngine {
       lastDailyReset: new Date().toISOString().slice(0, 10),
       classAbilityLastUsed: 0,
       statsAllocatedTotal: 0,
+      usernameChangeUsed: false,
+      createdAt: Date.now(),
+      lastLoginAt: Date.now(),
     };
   }
 
@@ -355,6 +369,76 @@ export class PlayerProgressionEngine {
     window.dispatchEvent(
       new CustomEvent('piso-player-profile-updated', { detail: { profile } })
     );
+  }
+
+  /**
+   * Strictly enforces that a username can ONLY be changed ONCE per account.
+   */
+  public static changeUsername(newUsername: string): { success: boolean; message: string } {
+    const profile = this.getProfile();
+
+    if (profile.usernameChangeUsed) {
+      return {
+        success: false,
+        message: '🔒 Hindi na maaaring palitan ang username. Isang beses lamang ito pinapayagan kada account.',
+      };
+    }
+
+    const trimmed = newUsername.trim();
+    if (trimmed.length < 3 || trimmed.length > 20) {
+      return {
+        success: false,
+        message: 'Ang username ay dapat nasa pagitan ng 3 hanggang 20 character.',
+      };
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+      return {
+        success: false,
+        message: 'Maaari lamang maglaman ng mga titik, numero, gitling (-), at underscore (_).',
+      };
+    }
+
+    const reserved = ['admin', 'administrator', 'system', 'piso', 'root', 'gm', 'moderator', 'support', 'staff', 'null', 'undefined', 'bot'];
+    if (reserved.includes(trimmed.toLowerCase())) {
+      return {
+        success: false,
+        message: 'Ang username na ito ay nakareserba sa system. Pumili ng ibang pangalan.',
+      };
+    }
+
+    const oldName = profile.username;
+    profile.username = trimmed;
+    profile.usernameChangeUsed = true;
+    profile.usernameChangedAt = Date.now();
+
+    this.saveProfile(profile);
+
+    // Record Security Event via custom event to avoid circular dependencies
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('piso-username-changed', {
+          detail: { oldUsername: oldName, newUsername: trimmed, timestamp: Date.now() },
+        })
+      );
+    }
+
+    return {
+      success: true,
+      message: `✨ Matagumpay na napalitan ang iyong username sa "${trimmed}"! Permanenteng nakakandado na ito.`,
+    };
+  }
+
+  public static savePlayerPosition(pos: { x: number; y: number; z: number; heading?: number; zone?: string }) {
+    const profile = this.getProfile();
+    profile.savedPosition = pos;
+    this.saveProfile(profile);
+  }
+
+  public static savePlayerControls(controls: any) {
+    const profile = this.getProfile();
+    profile.savedControls = controls;
+    this.saveProfile(profile);
   }
 
   /**
