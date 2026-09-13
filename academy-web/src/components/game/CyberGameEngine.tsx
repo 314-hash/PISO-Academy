@@ -18,17 +18,27 @@ import { NPCMentorModal } from './NPCMentorModal';
 import { AvatarHangarModal } from './AvatarHangarModal';
 import { CharacterCreationModal } from './CharacterCreationModal';
 import { DailyQuestsModal } from './DailyQuestsModal';
+import { PlayerProfileModal } from './PlayerProfileModal';
+import { ProgressionFeedbackToast } from './ProgressionFeedbackToast';
 import { Img2ThreejsStudio } from './Img2ThreejsStudio';
 import { WalletStudioTerminalModal } from './WalletStudioTerminalModal';
 import { PisoP2PChatRoom } from './PisoP2PChatRoom';
 import { LiveHUDChatBox } from './LiveHUDChatBox';
-import { VirtualTouchJoystick } from './VirtualTouchJoystick';
+import { DualVirtualJoystick } from './controls/DualVirtualJoystick';
+import { MobileActionCluster } from './controls/MobileActionCluster';
+import { InputDebugger } from './controls/InputDebugger';
+import { ControlSettingsModal } from './controls/ControlSettingsModal';
 import { PpfContactSolverStudio } from './PpfContactSolverStudio';
 import { TerranianMapGeneratorStudio } from './TerranianMapGeneratorStudio';
 import { PISOMetaverseEconomyStudio } from './PISOMetaverseEconomyStudio';
 import { MonsterHunterStudio } from './MonsterHunterStudio';
 import { PISOPvPArenaStudio } from './PISOPvPArenaStudio';
 import { MiningBuildingStudio } from './MiningBuildingStudio';
+import { AvatarSelectionModal } from './AvatarSelectionModal';
+import { PlayerInteractionModal } from './multiplayer/PlayerInteractionModal';
+import { MultiplayerNetworkEngine } from '../../services/multiplayer/MultiplayerNetworkEngine';
+import { RemotePlayerState } from '../../types/multiplayer';
+import { PlayerProgressionEngine } from '../../services/playerProgressionEngine';
 
 // Content Views
 import { CourseCatalog } from '../CourseCatalog';
@@ -60,6 +70,9 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
     claimedMentorRewards,
     controlSettings,
     humanAvatar,
+    avatarSkin,
+    avatarMode,
+    wallet,
   } = useAcademy();
 
   const [nearbyDistrict, setNearbyDistrict] = useState<DistrictInfo | null>(null);
@@ -76,12 +89,20 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
   const [showWalletTerminal, setShowWalletTerminal] = useState<boolean>(false);
   const [showMiningStudio, setShowMiningStudio] = useState<boolean>(false);
   const [showCharacterCreation, setShowCharacterCreation] = useState<boolean>(false);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState(SoundFX.isMuted);
 
   const [miningEngine, setMiningEngine] = useState<MiningBlockEngine | null>(null);
   const [monsterEngine, setMonsterEngine] = useState<MonsterSpawnEngine | null>(null);
 
+  // Multiplayer States
+  const [nearbyPlayer, setNearbyPlayer] = useState<{ player: RemotePlayerState; distance: number } | null>(null);
+  const [showInteractionModal, setShowInteractionModal] = useState<boolean>(false);
+  const [activeInteractionPlayer, setActiveInteractionPlayer] = useState<RemotePlayerState | null>(null);
+  const [showAvatarSelection, setShowAvatarSelection] = useState<boolean>(false);
+
   // Mobile / Touch controls state (detected automatically or toggled on demand)
+  const [showControlSettingsModal, setShowControlSettingsModal] = useState<boolean>(false);
   const [showTouchControls, setShowTouchControls] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return (
@@ -118,19 +139,65 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
       setShowCharacterCreation(true);
       SoundFX.playBlip();
     };
+    const handleOpenProfileModal = () => {
+      setShowProfileModal(true);
+      SoundFX.playBlip();
+    };
+    const handleInteractPlayer = (e: Event) => {
+      const custom = e as CustomEvent<{ player: RemotePlayerState }>;
+      if (custom.detail?.player) {
+        setActiveInteractionPlayer(custom.detail.player);
+        setShowInteractionModal(true);
+        SoundFX.playBlip();
+      }
+    };
     window.addEventListener('piso-open-wallet-terminal', handleOpenWalletEvent);
     window.addEventListener('piso-open-mining-studio', handleOpenMiningEvent);
     window.addEventListener('piso-open-avatar-options', handleOpenAvatarOptions);
     window.addEventListener('piso-open-inventory', handleOpenInventory);
     window.addEventListener('piso-open-character-creation', handleOpenCharacterCreation);
+    window.addEventListener('piso-open-player-profile', handleOpenProfileModal);
+    window.addEventListener('piso-interact-player', handleInteractPlayer);
     return () => {
       window.removeEventListener('piso-open-wallet-terminal', handleOpenWalletEvent);
       window.removeEventListener('piso-open-mining-studio', handleOpenMiningEvent);
       window.removeEventListener('piso-open-avatar-options', handleOpenAvatarOptions);
       window.removeEventListener('piso-open-inventory', handleOpenInventory);
       window.removeEventListener('piso-open-character-creation', handleOpenCharacterCreation);
+      window.removeEventListener('piso-open-player-profile', handleOpenProfileModal);
+      window.removeEventListener('piso-interact-player', handleInteractPlayer);
     };
   }, []);
+
+  // Initialize and synchronize Multiplayer Mesh session
+  React.useEffect(() => {
+    if (gameMode) {
+      const profile = PlayerProgressionEngine.getProfile();
+      const localState: RemotePlayerState = {
+        playerId: 'player_' + (profile.username || 'juan').toLowerCase().replace(/\s+/g, '_'),
+        username: profile.username || 'JuanDev',
+        walletAddress: wallet?.address || undefined,
+        isGuest: !wallet?.address,
+        avatarMode: avatarMode || 'human',
+        avatarSkin: avatarSkin || 'panday',
+        humanAvatar: humanAvatar,
+        playerClass: profile.playerClass || 'builder',
+        rankTier: profile.rank || 'Tuklas',
+        rankTitle: profile.rank || 'Tuklas',
+        level: profile.level || 1,
+        digitalPower: profile.secondaryAttributes?.digitalPower || 100,
+        currentZone: 'genesis',
+        presence: 'online',
+        animState: 'idle',
+        transform: { x: 0, y: 0.05, z: 8, heading: 0, vx: 0, vy: 0, vz: 0 },
+        timestamp: Date.now(),
+      };
+      MultiplayerNetworkEngine.instance.connect(localState);
+    }
+    return () => {
+      MultiplayerNetworkEngine.instance.disconnect();
+    };
+  }, [gameMode, avatarMode, avatarSkin, humanAvatar, wallet]);
 
   // Cooldown state for anime skills: { [skillId]: { remaining: number; total: number } }
   const [skillCooldowns, setSkillCooldowns] = useState<Record<string, { remaining: number; total: number }>>({});
@@ -424,6 +491,9 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#0B0F17] flex flex-col select-none">
+      {/* 0. Live Progression Feedback Toast */}
+      <ProgressionFeedbackToast />
+
       {/* 1. LovecraftUI Top Status Bar */}
       {!isCinematicMode && (
         <div className="relative z-30 animate-fade-in">
@@ -435,6 +505,8 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
             onOpenHangar={() => setShowHangar(true)}
             onOpenOptions={() => setShowOptions(true)}
             onOpenWalletTerminal={() => setShowWalletTerminal(true)}
+            onOpenProfile={() => setShowProfileModal(true)}
+            onOpenAvatarSelection={() => setShowAvatarSelection(true)}
           />
         </div>
       )}
@@ -450,7 +522,26 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
           playerPosRef={playerPosRef}
           onMiningEngineReady={(engine) => setMiningEngine(engine)}
           onMonsterEngineReady={(engine) => setMonsterEngine(engine)}
+          onNearbyPlayerProximity={setNearbyPlayer}
         />
+
+        {/* Floating Proximity Interaction Prompt [E] */}
+        {nearbyPlayer && !showInteractionModal && (
+          <div className="absolute bottom-36 left-1/2 -translate-x-1/2 z-30 animate-bounce-short">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveInteractionPlayer(nearbyPlayer.player);
+                setShowInteractionModal(true);
+                SoundFX.playBlip();
+              }}
+              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-600 via-teal-600 to-amber-500 text-slate-950 font-mono font-black text-xs sm:text-sm flex items-center space-x-2.5 shadow-[0_0_30px_rgba(6,182,212,0.6)] border-2 border-white hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            >
+              <span className="text-base">💬</span>
+              <span>[E] INTERACT WITH @{nearbyPlayer.player.username} ({nearbyPlayer.distance}m)</span>
+            </button>
+          </div>
+        )}
 
         {/* Zen / Cinematic Mode Floating Restore Button */}
         {isCinematicMode && (
@@ -612,16 +703,16 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
           />
         )}
 
-        {/* 6B. Mobile On-Screen Virtual Touch Joystick (Left or Right Thumb) */}
+        {/* 6B. Cross-Platform Dual Virtual Joysticks & Mobile Action Cluster */}
         {!isCinematicMode && showTouchControls && !activeWindow && (
-          <div
-            className={`fixed bottom-24 ${
-              controlSettings.swapJoystickSide ? 'right-4' : 'left-4'
-            } z-20 pointer-events-auto select-none touch-none animate-fade-in`}
-          >
-            <VirtualTouchJoystick />
-          </div>
+          <>
+            <DualVirtualJoystick swapSides={controlSettings.swapJoystickSide} />
+            <MobileActionCluster swapSides={controlSettings.swapJoystickSide} />
+          </>
         )}
+
+        {/* Real-Time Cross-Platform Input Pipeline Debugger */}
+        <InputDebugger />
 
         {/* 7. On-Screen Navigation Controls Reminder, Anime Super Powers & Quick Jump Action */}
         {!isCinematicMode && (
@@ -805,7 +896,7 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
                       setShowTouchControls((prev) => !prev);
                       SoundFX.playClick();
                     }}
-                    title="Toggle Mobile Touch Controls & Virtual Analog Joystick"
+                    title="Toggle Mobile Touch Controls & Dual Virtual Joysticks"
                     className={`group flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-md backdrop-blur-md active:scale-95 border ${
                       showTouchControls
                         ? 'bg-cyan-500/25 text-cyan-300 border-cyan-400 shadow-[0_0_18px_rgba(6,182,212,0.4)]'
@@ -814,6 +905,20 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
                   >
                     <span>📱</span>
                     <span>{showTouchControls ? 'TOUCH: ON' : 'TOUCH: OFF'}</span>
+                  </button>
+
+                  {/* Cross-Platform Controls & Gamepad Settings Modal Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowControlSettingsModal(true);
+                      SoundFX.playClick();
+                    }}
+                    title="Open Cross-Platform Controls, Sensitivities & Gamepad Settings"
+                    className="group flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all shadow-md backdrop-blur-md active:scale-95 border bg-[#0B0F17]/90 text-cyan-400 hover:text-cyan-200 border-cyan-500/40 hover:border-cyan-300"
+                  >
+                    <span>🎮</span>
+                    <span>CONTROLS</span>
                   </button>
 
                   {/* Auto Idle Attack Toggle Button */}
@@ -904,6 +1009,7 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
             onOpenOptions={() => setShowOptions(true)}
             onOpenTutorial={() => setShowTutorial(true)}
             onOpenWalletTerminal={() => setShowWalletTerminal(true)}
+            onOpenProfile={() => setShowProfileModal(true)}
           />
         </div>
       )}
@@ -959,6 +1065,13 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
         <GameOptionsModal onClose={() => setShowOptions(false)} />
       )}
 
+      {/* 11B. Cross-Platform Controls & Ergonomics Modal */}
+      <ControlSettingsModal
+        isOpen={showControlSettingsModal}
+        onClose={() => setShowControlSettingsModal(false)}
+        onOpenKeybindings={() => setShowOptions(true)}
+      />
+
       {/* 12. Daily Quests Modal */}
       {showQuests && (
         <DailyQuestsModal onClose={() => setShowQuests(false)} />
@@ -989,6 +1102,34 @@ export const CyberGameEngine: React.FC<CyberGameEngineProps> = ({
       <CharacterCreationModal
         isOpen={showCharacterCreation}
         onClose={() => setShowCharacterCreation(false)}
+      />
+
+      {/* 17. Player Profile & RPG Progression Modal */}
+      {showProfileModal && (
+        <PlayerProfileModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
+
+      {/* 18. Avatar Selection & Archetypes Modal */}
+      <AvatarSelectionModal
+        isOpen={showAvatarSelection}
+        onClose={() => setShowAvatarSelection(false)}
+        onConfirmEnter={(name) => {
+          setShowAvatarSelection(false);
+          setNotification({
+            message: `Mabuhay, ${name}! Naka-synchronize ang iyong Avatar sa PISO Metaverse mesh.`,
+            type: 'success',
+          });
+        }}
+      />
+
+      {/* 19. Player Proximity Interaction Drawer */}
+      <PlayerInteractionModal
+        isOpen={showInteractionModal}
+        targetPlayer={activeInteractionPlayer}
+        onClose={() => setShowInteractionModal(false)}
       />
     </div>
   );

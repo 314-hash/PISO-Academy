@@ -21,6 +21,11 @@ import {
 import { MonsterSpawnEngine } from '../../services/MonsterSpawnEngine';
 import { MiningBlockEngine } from '../../services/MiningBlockEngine';
 import { PlayerStatsEngine } from '../../services/PlayerStatsEngine';
+import { RemotePlayerManager } from './multiplayer/RemotePlayerManager';
+import { MultiplayerNetworkEngine } from '../../services/multiplayer/MultiplayerNetworkEngine';
+import { RemotePlayerState, PlayerMovementAnimState } from '../../types/multiplayer';
+import { PlayerProgressionEngine } from '../../services/playerProgressionEngine';
+import { InputManager } from '../../controls/InputManager';
 
 export interface DistrictInfo {
   id: string;
@@ -161,6 +166,7 @@ interface Cyber3DWorldProps {
   playerPosRef: React.MutableRefObject<{ x: number; z: number; heading: number }>;
   onMiningEngineReady?: (engine: MiningBlockEngine) => void;
   onMonsterEngineReady?: (engine: MonsterSpawnEngine) => void;
+  onNearbyPlayerProximity?: (closest: { player: RemotePlayerState; distance: number } | null) => void;
 }
 
 export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
@@ -172,6 +178,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
   playerPosRef,
   onMiningEngineReady,
   onMonsterEngineReady,
+  onNearbyPlayerProximity,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const activeNearbyDistrictRef = useRef<DistrictInfo | null>(null);
@@ -184,8 +191,9 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
   const onCruiseTargetChangeRef = useRef(onCruiseTargetChange);
   const onMiningEngineReadyRef = useRef(onMiningEngineReady);
   const onMonsterEngineReadyRef = useRef(onMonsterEngineReady);
+  const onNearbyPlayerProximityRef = useRef(onNearbyPlayerProximity);
 
-  const { avatarSkin, avatarMode, humanAvatar, controlSettings } = useAcademy();
+  const { avatarSkin, avatarMode, humanAvatar, controlSettings, wallet } = useAcademy();
   const controlSettingsRef = useRef(controlSettings);
 
   useEffect(() => {
@@ -196,6 +204,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     onCruiseTargetChangeRef.current = onCruiseTargetChange;
     onMiningEngineReadyRef.current = onMiningEngineReady;
     onMonsterEngineReadyRef.current = onMonsterEngineReady;
+    onNearbyPlayerProximityRef.current = onNearbyPlayerProximity;
     controlSettingsRef.current = controlSettings;
   });
 
@@ -255,6 +264,11 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     let activeMiningEngine = new MiningBlockEngine(scene);
     activeMiningEngine.spawnWorldBlocks(42);
     onMiningEngineReadyRef.current?.(activeMiningEngine);
+
+    // 5B. Multiplayer Remote Students Manager
+    const remotePlayerManager = new RemotePlayerManager(scene, (closest) => {
+      onNearbyPlayerProximityRef.current?.(closest ? { player: closest.player, distance: closest.distance } : null);
+    });
 
     // Event listener for real-time procedural world regeneration from Terranian Studio
     const handleWorldRegenerate = (e: Event) => {
@@ -1094,7 +1108,9 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
     let prevPointerX = 0;
     let prevPointerY = 0;
 
-    // 12. Input Handling & Jump Mechanics
+    // 12. Cross-Platform Input Pipeline Initialization
+    InputManager.instance.init(container);
+    InputManager.instance.setKeybinds(controlSettingsRef.current.keybinds || DEFAULT_KEYBINDS);
     const keys = { w: false, s: false, a: false, d: false, shift: false, space: false, eHold: false };
 
     // Jump & Double Jump State
@@ -1310,8 +1326,16 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         return;
       }
 
-      // Primary Anime Skill / Hold E to Seek Nearest Block
+      // Primary Anime Skill / Hold E to Seek Nearest Block or Interact with Nearby Student
       if (k === (kb.skillPrimary || 'e').toLowerCase() || k === 'e') {
+        // Check if directly in proximity to another student (< 3.8m)
+        const closestPeer = remotePlayerManager.getClosestPlayer();
+        if (closestPeer && closestPeer.distance <= 3.8) {
+          window.dispatchEvent(new CustomEvent('piso-interact-player', { detail: { player: closestPeer.player } }));
+          SoundFX.playBlip();
+          return;
+        }
+
         keys.eHold = true;
         const playerStats = PlayerStatsEngine.getStats();
         const miningResult = activeMiningEngine.mineNearestBlock(droneGroup.position, playerStats.level, 3.5);
@@ -1658,21 +1682,50 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       const delta = clock.getDelta();
       const time = clock.getElapsedTime();
 
-      // Determine movement speed
+      // Sample normalized cross-platform input (Zero React re-render overhead)
+      const input = InputManager.instance.update(delta);
+
+      // Handle jump action from any source (Keyboard Space, Mobile button, Gamepad A)
+      if (input.jump) {
+        triggerJump();
+      }
+
+      // Handle single mine action
+      if (input.mine) {
+        const playerStats = PlayerStatsEngine.getStats();
+        const miningResult = activeMiningEngine.mineNearestBlock(droneGroup.position, playerStats.level, 3.5);
+        if (miningResult) {
+          SoundFX.playLaser?.();
+          PlayerStatsEngine.addMiningExp(miningResult.block.type, miningResult.exp);
+          miningTimer = 0.5;
+        }
+      }
+
+      // Handle primary action / superpower
+      if (input.actionPrimary) {
+        const powerId = humanAvatar?.equippedPinoyItems?.superpower || 'kamehameha';
+        window.dispatchEvent(new CustomEvent('piso-trigger-superpower', { detail: { powerId } }));
+      }
+
+      // Apply camera look deltas from InputManager (mouse drag, touch joystick, gamepad stick)
+      if (input.lookX !== 0) {
+        orbitAngle += input.lookX;
+      }
+      if (input.lookY !== 0) {
+        // Safe elevation pitch clamping (0.15 rad to 1.35 rad) to prevent clipping or inverted flip
+        elevationAngle = Math.max(0.15, Math.min(1.35, elevationAngle + input.lookY));
+      }
+      if (input.zoomDelta !== 0) {
+        zoomDistance = Math.max(10, Math.min(32, zoomDistance + input.zoomDelta));
+      }
+
+      // Determine movement speed (support sprint from keyboard, gamepad, touch, or auto-sprint)
       const baseSpeed = controlSettings.flightSpeed === 'turbo' ? 22 : 14;
-      const speed = keys.shift ? baseSpeed * 1.5 : baseSpeed;
+      const speed = (input.sprint || keys.shift) ? baseSpeed * 1.5 : baseSpeed;
 
-      let moveX = 0;
-      let moveZ = 0;
-
-      if (keys.w) moveZ -= 1;
-      if (keys.s) moveZ += 1;
-      if (keys.a) moveX -= 1;
-      if (keys.d) moveX += 1;
-
-      // 0. Auto-Seek & Auto-Mine Nearest Block when E is held
+      // 0. Auto-Seek & Auto-Mine Nearest Block when Interact is held
       let isSeekingBlock = false;
-      if (keys.eHold && activeMiningEngine) {
+      if ((input.interactHeld || keys.eHold) && activeMiningEngine) {
         const playerStats = PlayerStatsEngine.getStats();
         const targetBlock = activeMiningEngine.getNearestAvailableBlock(droneGroup.position, 250, playerStats.level);
         if (targetBlock) {
@@ -1720,8 +1773,8 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         }
       }
 
-      // 1. Mobile Virtual Touch Joystick Movement (Camera-Relative)
-      if (mobileInput.active && mobileInput.intensity > 0.05) {
+      // 1. Unified Cross-Platform Movement (Touch Joystick, Gamepad Analog Stick, Keyboard WASD/Arrows)
+      if (input.moveMagnitude > 0.05) {
         if (targetPos) {
           targetPos = null;
           pendingInteractRef.current = null;
@@ -1730,47 +1783,25 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
           onCruiseTargetChangeRef.current?.(null);
         }
 
-        // Convert joystick to camera-relative world direction
-        const joyAngle = Math.atan2(mobileInput.x, -mobileInput.z);
-        const worldAngle = joyAngle + orbitAngle;
-        const moveMag = speed * mobileInput.intensity;
-
-        const moveWorldX = Math.sin(worldAngle) * moveMag;
-        const moveWorldZ = -Math.cos(worldAngle) * moveMag;
-
-        droneGroup.position.x += moveWorldX * delta;
-        droneGroup.position.z += moveWorldZ * delta;
-        // Face the actual world direction of travel (+ PI to fix inverted mesh facing)
-        droneHeading = worldAngle + Math.PI;
-
-      } else if (moveX !== 0 || moveZ !== 0) {
-        if (targetPos) {
-          targetPos = null;
-          pendingInteractRef.current = null;
-          targetMentorIndex = -1;
-          (clickBeacon.material as THREE.MeshBasicMaterial).opacity = 0;
-          onCruiseTargetChangeRef.current?.(null);
-        }
-        const mag = Math.sqrt(moveX * moveX + moveZ * moveZ);
+        const moveMag = speed * input.moveMagnitude;
         if (controlSettings.controlScheme !== 'world_axis') {
-          // Camera-Relative: W moves in the direction the camera is facing
-          const keyAngle = Math.atan2(moveX, -moveZ);
-          const worldAngle = keyAngle + orbitAngle;
-          const moveWorldX = Math.sin(worldAngle) * speed;
-          const moveWorldZ = -Math.cos(worldAngle) * speed;
+          // Camera-Relative: input.moveY > 0 moves forward in direction camera is facing
+          const joyAngle = Math.atan2(input.moveX, input.moveY);
+          const worldAngle = joyAngle + orbitAngle;
+          const moveWorldX = Math.sin(worldAngle) * moveMag;
+          const moveWorldZ = -Math.cos(worldAngle) * moveMag;
+
           droneGroup.position.x += moveWorldX * delta;
           droneGroup.position.z += moveWorldZ * delta;
           // Face the actual world direction of travel (+ PI to fix inverted mesh facing)
           droneHeading = worldAngle + Math.PI;
         } else {
-          // World-Axis: translate the raw input into a world movement vector,
-          // then derive heading from where we actually moved, not the raw keys.
-          const nx = moveX / mag;
-          const nz = moveZ / mag;
-          droneGroup.position.x += nx * speed * delta;
-          droneGroup.position.z += nz * speed * delta;
-          // Calculate heading from actual movement vector (+ PI for mesh alignment)
-          droneHeading = Math.atan2(nx, -nz) + Math.PI;
+          // World-Axis
+          const moveWorldX = input.moveX * moveMag;
+          const moveWorldZ = -input.moveY * moveMag;
+          droneGroup.position.x += moveWorldX * delta;
+          droneGroup.position.z += moveWorldZ * delta;
+          droneHeading = Math.atan2(input.moveX, input.moveY) + Math.PI;
         }
       } else if (targetPos) {
         const dx = targetPos.x - droneGroup.position.x;
@@ -1876,7 +1907,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       }
 
       // Humanoid Walking Rig vs Drone Hover Mechanics with Continuous Terrain Elevation
-      const isMoving = (moveX !== 0 || moveZ !== 0) || targetPos !== null || isSeekingBlock;
+      const isMoving = (input.moveMagnitude > 0.05) || targetPos !== null || isSeekingBlock;
       const isJumping = jumpCount > 0 || jumpOffsetY > 0.04;
 
       if (miningTimer > 0) {
@@ -1886,7 +1917,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
       if (avatarMode === 'human' && characterInstance) {
         if (isMoving && !isJumping) {
-          humanWalkPhase += delta * (keys.shift ? 14 : 9);
+          humanWalkPhase += delta * ((input.sprint || keys.shift) ? 14 : 9);
         }
         characterInstance.updateAnimation(
           humanWalkPhase,
@@ -2240,7 +2271,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
 
         // In idle (standing still): if nearest target exists, face it; otherwise sweep 360 degrees.
         // Only update droneHeading — rotation.y is driven exclusively by the lerp below.
-        const isStationary = !keys.w && !keys.s && !keys.a && !keys.d && !targetPos;
+        const isStationary = input.moveMagnitude <= 0.05 && !targetPos;
         if (isStationary) {
           if (nearestTarget && controlSettings.autoTargetLock !== false) {
             const dx = nearestTarget.monster.mesh.position.x - droneGroup.position.x;
@@ -2266,6 +2297,58 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       // Update 3D Monster Engine (Giga Buwaya Titans + Small Monster Farms)
       monsterSpawnEngine.update(delta, { x: droneGroup.position.x, z: droneGroup.position.z });
 
+      // Update Remote Multiplayer Students (Smooth Interpolation & Nametags)
+      remotePlayerManager.updateAll(delta, time, camera.position, droneGroup.position);
+
+      // Throttled Broadcast of Local Player Transform to Multiplayer Mesh
+      try {
+        const progProfile = PlayerProgressionEngine.getProfile();
+        const isTraveling = input.moveMagnitude > 0.05 || !!targetPos;
+        const isJumpingState = jumpCount > 0 || jumpOffsetY > 0;
+        const currentAnimState: PlayerMovementAnimState = isJumpingState
+          ? 'jump'
+          : miningTimer > 0
+          ? 'mine'
+          : isTraveling
+          ? (input.sprint || keys.shift)
+            ? 'run'
+            : 'walk'
+          : 'idle';
+
+        MultiplayerNetworkEngine.instance.sendPlayerState({
+          playerId: 'player_' + (progProfile.username || 'juan').toLowerCase().replace(/\s+/g, '_'),
+          username: progProfile.username || 'JuanDev',
+          walletAddress: wallet?.address || undefined,
+          isGuest: !wallet?.address,
+          avatarMode: avatarMode,
+          avatarSkin: avatarSkin,
+          humanAvatar: humanAvatar,
+          playerClass: progProfile.playerClass || 'builder',
+          rankTier: progProfile.rank || 'Tuklas',
+          rankTitle: progProfile.rank || 'Tuklas',
+          level: progProfile.level || 1,
+          digitalPower: progProfile.secondaryAttributes?.digitalPower || 100,
+          currentZone: activeNearbyDistrictRef.current?.id || 'genesis',
+          presence: activeNearbyMentorRef.current
+            ? 'studying'
+            : activeMiningEngine?.builderMode
+            ? 'mining'
+            : 'online',
+          animState: currentAnimState,
+          isMining: miningTimer > 0,
+          transform: {
+            x: droneGroup.position.x,
+            y: droneGroup.position.y,
+            z: droneGroup.position.z,
+            heading: droneHeading,
+            vx: isTraveling ? Math.sin(droneHeading) * speed : 0,
+            vy: jumpVelocityY,
+            vz: isTraveling ? -Math.cos(droneHeading) * speed : 0,
+          },
+          timestamp: Date.now(),
+        });
+      } catch (err) {}
+
       // 14. Camera Handling (Isometric Chase vs Follow vs Top-Down)
       let camX: number;
       let camY: number;
@@ -2286,9 +2369,10 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         camY = droneGroup.position.y + zoomDistance * Math.sin(elevationAngle);
       }
 
-      camera.position.x = THREE.MathUtils.lerp(camera.position.x, camX, 0.09);
-      camera.position.y = THREE.MathUtils.lerp(camera.position.y, camY, 0.09);
-      camera.position.z = THREE.MathUtils.lerp(camera.position.z, camZ, 0.09);
+      const cameraSmoothing = InputManager.instance.getPreferences().cameraSmoothing || 0.09;
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, camX, cameraSmoothing);
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, camY, cameraSmoothing);
+      camera.position.z = THREE.MathUtils.lerp(camera.position.z, camZ, cameraSmoothing);
       camera.lookAt(droneGroup.position.x, droneGroup.position.y + 0.8, droneGroup.position.z);
 
       // Screen Shake Physics (Anime Impact Vibration)
@@ -2362,6 +2446,74 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
         if (foundNearbyDistrict) SoundFX.playWarp();
       }
 
+      // Context-aware interaction target updates for InputManager & Mobile HUD
+      if (foundNearbyMentor) {
+        const mDist = Math.hypot(droneGroup.position.x - foundNearbyMentor.pos[0], droneGroup.position.z - foundNearbyMentor.pos[1]);
+        InputManager.instance.setContextTarget({
+          type: 'mentor',
+          id: foundNearbyMentor.id,
+          name: foundNearbyMentor.name,
+          title: foundNearbyMentor.title,
+          actionLabel: 'TALK',
+          color: '#' + foundNearbyMentor.color.toString(16).padStart(6, '0'),
+          distance: mDist,
+          icon: '👨‍🏫',
+          targetObject: foundNearbyMentor,
+        });
+      } else {
+        const closestPeer = remotePlayerManager.getClosestPlayer();
+        if (closestPeer && closestPeer.distance <= 3.8) {
+          InputManager.instance.setContextTarget({
+            type: 'player',
+            id: closestPeer.player.playerId,
+            name: closestPeer.player.username,
+            title: closestPeer.player.rankTitle,
+            actionLabel: 'MEET',
+            color: '#06B6D4',
+            distance: closestPeer.distance,
+            icon: '👥',
+            targetObject: closestPeer.player,
+          });
+        } else if (foundNearbyDistrict) {
+          const dDist = Math.hypot(droneGroup.position.x - foundNearbyDistrict.pos[0], droneGroup.position.z - foundNearbyDistrict.pos[1]);
+          InputManager.instance.setContextTarget({
+            type: 'district',
+            id: foundNearbyDistrict.id,
+            name: foundNearbyDistrict.name,
+            title: foundNearbyDistrict.tagline,
+            actionLabel: 'WARP',
+            color: '#' + foundNearbyDistrict.color.toString(16).padStart(6, '0'),
+            distance: dDist,
+            icon: foundNearbyDistrict.icon,
+            targetObject: foundNearbyDistrict,
+          });
+        } else if (activeMiningEngine) {
+          const playerStats = PlayerStatsEngine.getStats();
+          const nearestBlock = activeMiningEngine.getNearestAvailableBlock(droneGroup.position, 3.5, playerStats.level);
+          if (nearestBlock) {
+            const bDist = Math.hypot(
+              droneGroup.position.x - nearestBlock.mesh.position.x,
+              droneGroup.position.z - nearestBlock.mesh.position.z
+            );
+            InputManager.instance.setContextTarget({
+              type: 'block',
+              id: 'block_' + nearestBlock.def.type,
+              name: nearestBlock.def.displayName,
+              title: `Level ${nearestBlock.def.minLevel} Block`,
+              actionLabel: 'MINE',
+              color: '#' + (nearestBlock.def.color || 0x06B6D4).toString(16).padStart(6, '0'),
+              distance: bDist,
+              icon: nearestBlock.def.emoji || '⛏️',
+              targetObject: nearestBlock,
+            });
+          } else {
+            InputManager.instance.setContextTarget(null);
+          }
+        } else {
+          InputManager.instance.setContextTarget(null);
+        }
+      }
+
       // 16. PPF Contact Solver Dynamic Cloth Physics Step (Banner & Cape)
       const windTurbulence = new THREE.Vector3(
         Math.sin(time * 2.2) * 1.5 + 2.2,
@@ -2370,11 +2522,11 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       );
       ppfBanner.step(delta, 3, [], windTurbulence);
 
-      const isTraveling = (keys.w || keys.s || keys.a || keys.d || (mobileInput.active && mobileInput.intensity > 0.05) || !!targetPos);
+      const isTravelingCape = input.moveMagnitude > 0.05 || !!targetPos;
       const capeWind = new THREE.Vector3(
-        -Math.sin(droneHeading) * speed * (isTraveling ? 1.3 : 0.15) + windTurbulence.x * 0.25,
+        -Math.sin(droneHeading) * speed * (isTravelingCape ? 1.3 : 0.15) + windTurbulence.x * 0.25,
         -0.2,
-        Math.cos(droneHeading) * speed * (isTraveling ? 1.3 : 0.15) + windTurbulence.z * 0.25
+        Math.cos(droneHeading) * speed * (isTravelingCape ? 1.3 : 0.15) + windTurbulence.z * 0.25
       );
       ppfCape.step(delta, 3, [avatarBodyCollider], capeWind);
 
@@ -2411,6 +2563,7 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       crossBarGeo.dispose();
       poleMat.dispose();
       monsterSpawnEngine.dispose();
+      remotePlayerManager.disposeAll();
       scene.remove(reticleGroup);
       reticleTexture.dispose();
       reticleMat.dispose();
@@ -2450,6 +2603,8 @@ export const Cyber3DWorld: React.FC<Cyber3DWorldProps> = ({
       window.removeEventListener('pointerup', handlePointerUp);
       container.removeEventListener('wheel', handleWheel);
       container.removeEventListener('contextmenu', handleContextMenu);
+      InputManager.instance.setContextTarget(null);
+      InputManager.instance.dispose();
       if (renderer.domElement && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }

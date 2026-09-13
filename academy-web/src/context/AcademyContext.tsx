@@ -5,6 +5,7 @@ import { WalletService, WalletState } from '../services/walletService';
 import { CertificateService, VerifiedCertificate } from '../services/certificateService';
 import { ContractDeployer, DeploymentReceipt } from '../services/contractDeployer';
 import { PlayerStatsEngine } from '../services/PlayerStatsEngine';
+import { PlayerProgressionEngine } from '../services/playerProgressionEngine';
 
 export type NavView = 'home' | 'courses' | 'lab' | 'deploy' | 'verify' | 'profile' | 'projects' | 'img2threejs' | 'worldmap' | 'chat' | 'ppfstudio' | 'worldgen' | 'economy' | 'bounties' | 'pvp';
 
@@ -231,6 +232,10 @@ export interface ControlSettings {
   autoTargetLock: boolean;
   performanceTier: 'low' | 'balanced' | 'ultra';
   keybinds: KeybindConfig;
+  cameraSensitivity?: number;
+  joystickSensitivity?: number;
+  cameraSmoothing?: number;
+  controlMode?: 'auto' | 'touch' | 'keyboard' | 'gamepad';
 }
 
 interface AcademyContextType {
@@ -641,6 +646,11 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     recordQuestProgress('talk-mentor', 1);
 
+    try {
+      PlayerProgressionEngine.awardAction('help_player', { mentorId });
+      PlayerProgressionEngine.recordQuestProgress('com_mentor_trio', 1);
+    } catch {}
+
     setNotification({
       message: `🎉 Natanggap ang 1-Time Mentor Blessing! +${xpReward} XP mula sa Mentor!`,
       type: 'success',
@@ -897,6 +907,10 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem('piso_student_xp', String(newXp));
       recordQuestProgress('quiz-master', 1);
 
+      try {
+        PlayerProgressionEngine.awardAction('complete_lesson', { lessonId });
+      } catch {}
+
       setNotification({
         message: 'Lesson completed! +100 XP gained!',
         type: 'success',
@@ -915,6 +929,10 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem('piso_student_xp', String(newXp));
       recordQuestProgress('smart-forge', 1);
 
+      try {
+        PlayerProgressionEngine.awardAction('complete_challenge', { challengeId, xpEarned });
+      } catch {}
+
       setNotification({
         message: `Mabuhay! Challenge Passed! +${xpEarned} XP awarded!`,
         type: 'success',
@@ -931,6 +949,10 @@ export const AcademyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setXp(newXp);
     localStorage.setItem('piso_student_xp', String(newXp));
     recordQuestProgress('cert-verify', 1);
+
+    try {
+      PlayerProgressionEngine.awardAction('deploy_contract', { track });
+    } catch {}
 
     setNotification({
       message: `Katunayan Certificate #${cert.tokenId} issued on PISO Chain! +${track.xpReward} XP!`,

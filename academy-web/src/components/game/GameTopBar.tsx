@@ -17,6 +17,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import { PISO_NETWORK } from '../../pisoConfig';
+import { getRankForLevel } from '../../data/progressionMeta';
+import { PlayerProgressionEngine } from '../../services/playerProgressionEngine';
+import { MultiplayerNetworkEngine } from '../../services/multiplayer/MultiplayerNetworkEngine';
 
 interface GameTopBarProps {
   gameMode: boolean;
@@ -26,6 +29,8 @@ interface GameTopBarProps {
   onOpenHangar?: () => void;
   onOpenOptions?: () => void;
   onOpenWalletTerminal?: () => void;
+  onOpenProfile?: () => void;
+  onOpenAvatarSelection?: () => void;
 }
 
 export const GameTopBar: React.FC<GameTopBarProps> = ({
@@ -36,12 +41,21 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
   onOpenHangar,
   onOpenOptions,
   onOpenWalletTerminal,
+  onOpenProfile,
+  onOpenAvatarSelection,
 }) => {
   const { wallet, xp, level, levelTitle, connectInjectedWallet, openConnectWalletModal, avatarMode, humanAvatar } = useAcademy();
 
   const [currentBlock, setCurrentBlock] = useState(125490);
   const [pulseActive, setPulseActive] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [onlineCount, setOnlineCount] = useState<number>(1);
+
+  const currentRank = getRankForLevel(level);
+  let digitalPower = 15;
+  try {
+    digitalPower = PlayerProgressionEngine.getProfile().secondaryAttributes.digitalPower;
+  } catch {}
 
   // 3-second block heartbeat simulation
   useEffect(() => {
@@ -51,6 +65,22 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
       setTimeout(() => setPulseActive(false), 800);
     }, 3000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Sync multiplayer connected students count
+  useEffect(() => {
+    const updateCount = () => {
+      setOnlineCount(MultiplayerNetworkEngine.instance.getConnectedPeerCount() + 1);
+    };
+    updateCount();
+    MultiplayerNetworkEngine.instance.on('onPlayerJoin', updateCount);
+    MultiplayerNetworkEngine.instance.on('onPlayerLeave', updateCount);
+    const countInterval = setInterval(updateCount, 2500);
+    return () => {
+      MultiplayerNetworkEngine.instance.off('onPlayerJoin', updateCount);
+      MultiplayerNetworkEngine.instance.off('onPlayerLeave', updateCount);
+      clearInterval(countInterval);
+    };
   }, []);
 
   const gasHpPercent = Math.min(100, Math.max(15, parseFloat(wallet.balance) * 10));
@@ -152,14 +182,45 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
 
       {/* Right: XP Rank + Dual-Mode Switcher */}
       <div className="flex items-center space-x-3">
-        {/* XP Rank Badge */}
-        <div className="hidden sm:flex items-center space-x-2 px-3 py-1 rounded-xl bg-slate-900 border border-slate-800">
-          <Award className="w-4 h-4 text-amber-400" />
+        {/* Live Multiplayer Online Students Pill */}
+        <button
+          type="button"
+          onClick={() => {
+            SoundFX.playClick();
+            onOpenAvatarSelection?.();
+          }}
+          title="Multiplayer Peer Status & Choose Avatar"
+          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-cyan-500/40 hover:border-cyan-400 text-xs font-mono font-bold text-cyan-300 transition-all shadow-sm group"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>👥 {onlineCount} ONLINE</span>
+        </button>
+
+        {/* XP Rank & Filipino Title Badge */}
+        <button
+          type="button"
+          onClick={() => {
+            SoundFX.playClick();
+            onOpenProfile?.();
+          }}
+          title="Buksan ang Player Profile & Progression [Hotkey: P]"
+          className="hidden sm:flex items-center space-x-2 px-3 py-1 rounded-xl bg-slate-900 border border-slate-800 hover:border-amber-400/80 transition-all cursor-pointer group shadow-sm"
+        >
+          <Award className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
           <div className="text-right">
-            <div className="text-[10px] font-mono font-bold text-amber-300">LVL {level}</div>
-            <div className="text-[9px] font-mono text-slate-400">{xp} XP</div>
+            <div className="text-[10px] font-mono font-bold text-amber-300 flex items-center space-x-1 justify-end">
+              <span>LVL {level}</span>
+              <span className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                {currentRank.tier}
+              </span>
+            </div>
+            <div className="text-[9px] font-mono text-slate-400 flex items-center space-x-1 justify-end">
+              <span className="text-cyan-400 font-bold">{digitalPower} DP</span>
+              <span>•</span>
+              <span>{xp} XP</span>
+            </div>
           </div>
-        </div>
+        </button>
 
         {/* Quick Menu Buttons: Tutorial, Quests, Hangar, Options */}
         <div className="flex items-center space-x-1.5">
@@ -203,6 +264,21 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
               <span>{avatarMode === 'human' ? '👤' : '🛸'}</span>
               <span className="hidden sm:inline">{avatarMode === 'human' ? 'Avatar' : 'Drone'}</span>
               <span className="text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1 rounded border border-amber-400/30">7</span>
+            </button>
+          )}
+
+          {onOpenProfile && (
+            <button
+              onClick={() => {
+                SoundFX.playClick();
+                onOpenProfile();
+              }}
+              title="Player Profile & RPG Progression (Hotkey: P)"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-slate-300 hover:text-amber-300 text-xs font-mono font-bold flex items-center space-x-1.5 transition-all shadow-sm group"
+            >
+              <Shield className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+              <span className="hidden sm:inline">Profile</span>
+              <span className="text-[10px] text-amber-400 font-bold bg-amber-400/10 px-1 rounded border border-amber-400/30">P</span>
             </button>
           )}
 

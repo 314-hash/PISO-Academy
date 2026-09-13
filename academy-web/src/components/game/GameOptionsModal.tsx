@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAcademy, ControlSettings, DEFAULT_KEYBINDS, KeybindConfig } from '../../context/AcademyContext';
+import { InputManager } from '../../controls/InputManager';
+import { ControlPreferences, ControlMode } from '../../controls/InputTypes';
 import { SoundFX } from '../../services/soundFX';
 import {
   Sliders,
@@ -20,6 +22,7 @@ import {
   Wrench,
   Shield,
   HelpCircle,
+  Gamepad2,
 } from 'lucide-react';
 
 interface GameOptionsModalProps {
@@ -28,8 +31,19 @@ interface GameOptionsModalProps {
 
 export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({ onClose }) => {
   const { controlSettings, setControlSettings, setNotification } = useAcademy();
-  const [activeTab, setActiveTab] = useState<'camera' | 'controls'>('controls');
+  const [activeTab, setActiveTab] = useState<'camera' | 'controls' | 'gamepad'>('controls');
   const [activeRebindAction, setActiveRebindAction] = useState<keyof KeybindConfig | null>(null);
+
+  const [inputPrefs, setInputPrefs] = useState<ControlPreferences>(() =>
+    InputManager.instance.getPreferences()
+  );
+
+  const updateInputPref = <K extends keyof ControlPreferences>(key: K, val: ControlPreferences[K]) => {
+    SoundFX.playClick();
+    const updated = { ...inputPrefs, [key]: val };
+    setInputPrefs(updated);
+    InputManager.instance.savePreferences(updated);
+  };
 
   const currentKeybinds: KeybindConfig = {
     ...DEFAULT_KEYBINDS,
@@ -417,6 +431,20 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({ onClose }) =
             <Compass className="w-4 h-4" />
             <span>🎮 FLIGHT CAMERA & GRAPHICS</span>
           </button>
+          <button
+            onClick={() => {
+              setActiveTab('gamepad');
+              SoundFX.playClick();
+            }}
+            className={`flex items-center space-x-2 py-3 px-4 border-b-2 font-mono text-xs font-bold transition-all ${
+              activeTab === 'gamepad'
+                ? 'border-purple-400 text-purple-300 bg-purple-500/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Gamepad2 className="w-4 h-4" />
+            <span>🕹️ CROSS-PLATFORM & GAMEPAD</span>
+          </button>
         </div>
 
         {/* Modal Body */}
@@ -779,6 +807,199 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({ onClose }) =
                 <div className="flex justify-between text-[10px] font-mono text-slate-500">
                   <span>Close Tactical (12m)</span>
                   <span>Overview Radar (32m)</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'gamepad' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* 1. Control Mode Preset */}
+              <div className="space-y-2">
+                <label className="text-xs font-mono font-bold text-slate-400 uppercase flex items-center space-x-2">
+                  <Sliders className="w-4 h-4 text-purple-400" />
+                  <span>Input Mode & Device Preference</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'auto' as ControlMode, label: '✨ Auto Detect', desc: 'Adapts to screen/touch' },
+                    { id: 'touch' as ControlMode, label: '📱 Touch Sticks', desc: 'Dual virtual joysticks' },
+                    { id: 'keyboard' as ControlMode, label: '⌨️ WASD + Mouse', desc: 'Desktop keyboard' },
+                    { id: 'gamepad' as ControlMode, label: '🎮 Gamepad API', desc: 'Physical controller' },
+                  ].map((m) => {
+                    const isActive = inputPrefs.controlMode === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => updateInputPref('controlMode', m.id)}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          isActive
+                            ? 'border-purple-400 bg-purple-500/20 text-white shadow-[0_0_15px_rgba(168,85,247,0.35)]'
+                            : 'border-slate-800 bg-[#161F30] text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="font-bold text-xs">{m.label}</div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">{m.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Sensitivity Sliders */}
+              <div className="p-4 rounded-xl bg-[#161F30] border border-slate-800 space-y-4">
+                <div className="font-mono text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Cross-Platform Tuning</span>
+                  <span className="text-[10px] text-slate-400">Live 60 FPS Response</span>
+                </div>
+
+                {/* Camera Sensitivity Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-300 font-semibold">Camera Look Sensitivity</span>
+                    <span className="font-mono font-bold text-cyan-300">
+                      {inputPrefs.cameraSensitivity.toFixed(2)}x
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.4"
+                    max="2.5"
+                    step="0.05"
+                    value={inputPrefs.cameraSensitivity}
+                    onChange={(e) => updateInputPref('cameraSensitivity', parseFloat(e.target.value))}
+                    className="w-full accent-cyan-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  />
+                </div>
+
+                {/* Joystick Sensitivity Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-300 font-semibold">Mobile Joystick Sensitivity</span>
+                    <span className="font-mono font-bold text-amber-300">
+                      {inputPrefs.joystickSensitivity.toFixed(2)}x
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2.0"
+                    step="0.05"
+                    value={inputPrefs.joystickSensitivity}
+                    onChange={(e) => updateInputPref('joystickSensitivity', parseFloat(e.target.value))}
+                    className="w-full accent-amber-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  />
+                </div>
+
+                {/* Camera Smoothing Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-300 font-semibold">Camera Orbit Smoothing</span>
+                    <span className="font-mono font-bold text-purple-300">
+                      {Math.round(inputPrefs.cameraSmoothing * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.02"
+                    max="0.25"
+                    step="0.01"
+                    value={inputPrefs.cameraSmoothing}
+                    onChange={(e) => updateInputPref('cameraSmoothing', parseFloat(e.target.value))}
+                    className="w-full accent-purple-400 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Toggles Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => updateInputPref('invertPitch', !inputPrefs.invertPitch)}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    inputPrefs.invertPitch
+                      ? 'border-amber-400 bg-amber-500/20 text-white shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                      : 'border-slate-800 bg-[#161F30] text-slate-400'
+                  }`}
+                >
+                  <span className="text-xs font-semibold">Invert Pitch (Y)</span>
+                  <span className={`text-xs font-mono font-bold ${inputPrefs.invertPitch ? 'text-amber-400' : 'text-slate-600'}`}>
+                    {inputPrefs.invertPitch ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateInputPref('invertYaw', !inputPrefs.invertYaw)}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    inputPrefs.invertYaw
+                      ? 'border-amber-400 bg-amber-500/20 text-white shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                      : 'border-slate-800 bg-[#161F30] text-slate-400'
+                  }`}
+                >
+                  <span className="text-xs font-semibold">Invert Yaw (X)</span>
+                  <span className={`text-xs font-mono font-bold ${inputPrefs.invertYaw ? 'text-amber-400' : 'text-slate-600'}`}>
+                    {inputPrefs.invertYaw ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateInputPref('autoSprint', !inputPrefs.autoSprint)}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    inputPrefs.autoSprint
+                      ? 'border-cyan-400 bg-cyan-500/20 text-white shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                      : 'border-slate-800 bg-[#161F30] text-slate-400'
+                  }`}
+                >
+                  <span className="text-xs font-semibold">Auto-Sprint</span>
+                  <span className={`text-xs font-mono font-bold ${inputPrefs.autoSprint ? 'text-cyan-400' : 'text-slate-600'}`}>
+                    {inputPrefs.autoSprint ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => updateInputPref('vibration', !inputPrefs.vibration)}
+                  className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                    inputPrefs.vibration
+                      ? 'border-emerald-400 bg-emerald-500/20 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+                      : 'border-slate-800 bg-[#161F30] text-slate-400'
+                  }`}
+                >
+                  <span className="text-xs font-semibold">Haptic Feedback</span>
+                  <span className={`text-xs font-mono font-bold ${inputPrefs.vibration ? 'text-emerald-400' : 'text-slate-600'}`}>
+                    {inputPrefs.vibration ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+              </div>
+
+              {/* 4. Gamepad Standard Controls Reference */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div className="flex items-center space-x-2 text-xs font-mono font-bold text-white">
+                  <Gamepad2 className="w-4 h-4 text-purple-400" />
+                  <span>Physical Gamepad Mapping Reference (XInput / DualShock / Generic)</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] font-mono text-slate-300">
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-amber-300 font-bold">Left Stick:</span> Movement (360°)
+                  </div>
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-cyan-300 font-bold">Right Stick:</span> Camera Orbit
+                  </div>
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-emerald-300 font-bold">Button A / ✕:</span> Jump / 2X Jump
+                  </div>
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-yellow-300 font-bold">Button B / ◯:</span> Interact / Meet
+                  </div>
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-purple-300 font-bold">Button X / □:</span> Mine Nearest
+                  </div>
+                  <div className="p-2 rounded bg-slate-900 border border-slate-800">
+                    <span className="text-blue-300 font-bold">LB / L1 / L3:</span> Sprint Boost
+                  </div>
                 </div>
               </div>
             </div>

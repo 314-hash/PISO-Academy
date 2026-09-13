@@ -4,6 +4,8 @@ import { Navigation, Crosshair, Skull, ShieldAlert, Layers } from 'lucide-react'
 import { SoundFX } from '../../services/soundFX';
 import { useAcademy } from '../../context/AcademyContext';
 import { MonsterSpawnEngine, MonsterEntity } from '../../services/MonsterSpawnEngine';
+import { MultiplayerNetworkEngine } from '../../services/multiplayer/MultiplayerNetworkEngine';
+import { RemotePlayerState } from '../../types/multiplayer';
 
 interface GameMinimapProps {
   playerPosRef: React.MutableRefObject<{ x: number; z: number; heading: number }>;
@@ -40,6 +42,7 @@ export const GameMinimap: React.FC<GameMinimapProps> = ({
   const [radarRange, setRadarRange] = useState<140 | 60>(140); // 140m Full World, 60m Tactical Local
   const [activeMonsters, setActiveMonsters] = useState<MinimapMonsterBlip[]>([]);
   const [hoveredMonster, setHoveredMonster] = useState<MinimapMonsterBlip | null>(null);
+  const [remoteStudents, setRemoteStudents] = useState<RemotePlayerState[]>([]);
 
   // Sync player position and monster entities periodically
   useEffect(() => {
@@ -81,6 +84,12 @@ export const GameMinimap: React.FC<GameMinimapProps> = ({
         }
         setActiveMonsters(blips);
       }
+
+      // Sync active remote students in radar
+      try {
+        const peers = Array.from(MultiplayerNetworkEngine.instance.getRemotePlayers().values());
+        setRemoteStudents(peers);
+      } catch {}
     }, 80);
 
     return () => clearInterval(interval);
@@ -247,6 +256,27 @@ export const GameMinimap: React.FC<GameMinimapProps> = ({
             >
               <span>{m.avatar}</span>
             </button>
+          );
+        })}
+
+        {/* REMOTE STUDENTS RADAR BLIPS */}
+        {remoteStudents.map((peer) => {
+          const px = toRadarX(peer.transform.x);
+          const py = toRadarY(peer.transform.z);
+          return (
+            <div
+              key={peer.playerId}
+              title={`🧑‍🎓 ${peer.username} (${peer.rankTitle})`}
+              className="absolute w-3.5 h-3.5 -ml-1.75 -mt-1.75 rounded-full z-20 flex items-center justify-center cursor-pointer hover:scale-150 transition-transform"
+              style={{ left: `${px}px`, top: `${py}px` }}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('piso-interact-player', { detail: { player: peer } }));
+                SoundFX.playBlip();
+              }}
+            >
+              <span className="absolute w-full h-full rounded-full bg-cyan-400 animate-ping opacity-60" />
+              <span className="relative w-2 h-2 rounded-full bg-cyan-400 border border-white shadow-[0_0_8px_#06B6D4]" />
+            </div>
           );
         })}
 

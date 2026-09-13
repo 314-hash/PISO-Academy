@@ -6,6 +6,7 @@
 
 import { PisoEconomyService } from './pisoEconomyService';
 import { SoundFX } from './soundFX';
+import { PlayerProgressionEngine } from './playerProgressionEngine';
 
 export interface PlayerStats {
   level: number;
@@ -199,6 +200,10 @@ export class PlayerStatsEngine {
 
     const result = this.addExp(expAward);
 
+    try {
+      PlayerProgressionEngine.awardAction('mine_block', { expAward, blockType });
+    } catch {}
+
     window.dispatchEvent(
       new CustomEvent('piso-mining-exp', { detail: { blockType, expAward } })
     );
@@ -293,7 +298,14 @@ export class PlayerStatsEngine {
     const isCrit = Math.random() * 100 < critChance;
     const critMultiplier = isCrit ? 1.85 : 1.0;
 
-    const combinedMultiplier = statMultiplier * gearMultiplier * levelMultiplier * critMultiplier;
+    // Digital Power scaling from learning & Web3 mastery: +0.75% dmg per Digital Power point
+    let powerMultiplier = 1.0;
+    try {
+      const digitalPower = PlayerProgressionEngine.getProfile().secondaryAttributes.digitalPower || 10;
+      powerMultiplier = 1 + (Math.max(0, digitalPower - 10) * 0.0075);
+    } catch {}
+
+    const combinedMultiplier = statMultiplier * gearMultiplier * levelMultiplier * critMultiplier * powerMultiplier;
     const finalDamage = Math.round(skillBaseDamage * combinedMultiplier);
     const gearBonusDamage = Math.round(skillBaseDamage * (gearMultiplier - 1));
 
@@ -526,6 +538,14 @@ export class PlayerStatsEngine {
 
     // Grant EXP
     this.addExp(expReward);
+
+    try {
+      PlayerProgressionEngine.awardAction(isBoss ? 'kill_boss' : 'kill_monster', {
+        expReward,
+        monsterName,
+        isBoss,
+      });
+    } catch {}
 
     // Deposit $PISO token reward into pending harvest / wallet if quota permitted
     if (effectiveBounty > 0) {

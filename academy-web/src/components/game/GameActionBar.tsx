@@ -31,6 +31,7 @@ interface GameActionBarProps {
   onOpenOptions?: () => void;
   onOpenTutorial?: () => void;
   onOpenWalletTerminal?: () => void;
+  onOpenProfile?: () => void;
 }
 
 export const GameActionBar: React.FC<GameActionBarProps> = ({
@@ -44,6 +45,7 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
   onOpenOptions,
   onOpenTutorial,
   onOpenWalletTerminal,
+  onOpenProfile,
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
 
@@ -59,13 +61,12 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
     { key: 'alt2', num: 'Alt+2', label: 'Code Lab', onClick: () => onSelectView('lab'), isActive: activeView === 'lab', icon: <Terminal className="w-5 h-5" /> },
     { key: 'alt3', num: 'Alt+3', label: 'Deploy Rig', onClick: () => onSelectView('deploy'), isActive: activeView === 'deploy', icon: <Rocket className="w-5 h-5" /> },
     { key: 'alt4', num: 'Alt+4', label: 'Katunayan', onClick: () => onSelectView('verify'), isActive: activeView === 'verify', icon: <ShieldCheck className="w-5 h-5" /> },
-    { key: 'alt5', num: 'Alt+5', label: 'Inventory', onClick: () => onSelectView('profile'), isActive: activeView === 'profile', icon: <User className="w-5 h-5" /> },
+    { key: 'alt5', num: 'Alt+5', label: 'Profile', onClick: () => { if (onOpenProfile) onOpenProfile(); else onSelectView('profile'); }, isActive: activeView === 'profile', icon: <User className="w-5 h-5 text-amber-400" /> },
     { key: 'alt6', num: 'Alt+6', label: 'Directory', onClick: () => onSelectView('projects'), isActive: activeView === 'projects', icon: <Award className="w-5 h-5" /> },
-    { key: 'alt7', num: 'Alt+7', label: 'Avatar', onClick: () => onOpenHangar?.(), isActive: false, icon: <User className="w-5 h-5 text-amber-400" /> },
+    { key: 'alt7', num: 'Alt+7', label: 'Avatar', onClick: () => onOpenHangar?.(), isActive: false, icon: <User className="w-5 h-5 text-cyan-400" /> },
     { key: 'alt8', num: 'Alt+8', label: 'img23D', onClick: () => onSelectView('img2threejs'), isActive: activeView === 'img2threejs', icon: <Box className="w-5 h-5" /> },
     { key: 'alt9', num: 'Alt+9', label: 'World Map', onClick: () => onSelectView('worldmap'), isActive: activeView === 'worldmap', icon: <Globe className="w-5 h-5 text-cyan-400" /> },
     { key: 'alt10', num: 'Alt+10', label: '70M Bounties', onClick: () => onSelectView('bounties'), isActive: activeView === 'bounties', icon: <Skull className="w-5 h-5 text-rose-400" /> },
-    { key: 'p', num: 'P', label: 'PPF Physics', onClick: () => onSelectView('ppfstudio'), isActive: activeView === 'ppfstudio', icon: <Box className="w-5 h-5 text-amber-400" /> },
     { key: 'l', num: 'L', label: 'World Gen', onClick: () => onSelectView('worldgen'), isActive: activeView === 'worldgen', icon: <Globe className="w-5 h-5 text-emerald-400" /> },
     { key: 'k', num: 'K', label: '₱ Farm & Forge', onClick: () => onSelectView('economy'), isActive: activeView === 'economy', icon: <Coins className="w-5 h-5 text-amber-400" /> },
     { key: 'u', num: 'U', label: 'PvP Arena', onClick: () => onSelectView('pvp'), isActive: activeView === 'pvp', icon: <Swords className="w-5 h-5 text-red-400" /> },
@@ -125,6 +126,10 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
       } else if (e.key.toLowerCase() === 'j' && !e.altKey && !e.ctrlKey) {
         SoundFX.playClick();
         onSelectView('bounties');
+      } else if (e.key.toLowerCase() === 'p' && !e.altKey && !e.ctrlKey) {
+        SoundFX.playClick();
+        if (onOpenProfile) onOpenProfile();
+        else onSelectView('profile');
       } else if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 'w' && onOpenWalletTerminal) {
         SoundFX.playClick();
         onOpenWalletTerminal();
@@ -133,7 +138,7 @@ export const GameActionBar: React.FC<GameActionBarProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [actions, onRequestFaucet, onToggleMute, onOpenQuests, onOpenOptions, onOpenTutorial, onOpenWalletTerminal]);
+  }, [actions, onRequestFaucet, onToggleMute, onOpenQuests, onOpenOptions, onOpenTutorial, onOpenWalletTerminal, onOpenProfile]);
 
   if (isCollapsed) {
     return (

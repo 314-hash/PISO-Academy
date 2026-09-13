@@ -7,6 +7,9 @@ import {
 } from '../../services/gunService';
 import { useAcademy } from '../../context/AcademyContext';
 import { SoundFX } from '../../services/soundFX';
+import { PlayerProgressionEngine } from '../../services/playerProgressionEngine';
+import { MultiplayerNetworkEngine } from '../../services/multiplayer/MultiplayerNetworkEngine';
+import { NetworkChatPayload } from '../../types/multiplayer';
 import {
   MessageSquare,
   Send,
@@ -33,6 +36,7 @@ export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat, 
   const [activeRoomId, setActiveRoomId] = useState<string>('genesis-council');
   const [messages, setMessages] = useState<PisoChatMessage[]>([]);
   const [inputText, setInputText] = useState<string>('');
+  const [chatScope, setChatScope] = useState<'world' | 'proximity'>('world');
   const [isMinimized, setIsMinimized] = useState<boolean>(() => {
     return hasTouchControls || (typeof window !== 'undefined' && window.innerWidth < 768);
   });
@@ -78,6 +82,39 @@ export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat, 
     return () => unsub();
   }, [activeRoomId, isMinimized]);
 
+  // Subscribe to real-time multiplayer peer chat messages
+  useEffect(() => {
+    const handleMultiplayerChat = (chat: NetworkChatPayload) => {
+      const incomingMsg: PisoChatMessage = {
+        id: chat.messageId,
+        roomId: activeRoomId,
+        sender: chat.senderName,
+        senderAddress: '0x' + chat.senderId.slice(0, 10),
+        senderAvatar: chat.senderRank?.includes('🌟') ? '🌟' : '🧑‍🎓',
+        role: 'builder',
+        text: chat.isProximity ? `[Proximity] ${chat.text}` : chat.text,
+        timestamp: chat.timestamp,
+        reactions: {},
+        tipTotal: 0,
+        hash: '0x' + Math.random().toString(16).slice(2, 10),
+      };
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === incomingMsg.id)) return prev;
+        return [...prev, incomingMsg];
+      });
+
+      if (isMinimized) {
+        setUnreadCount((c) => c + 1);
+      }
+    };
+
+    MultiplayerNetworkEngine.instance.on('onChatMessage', handleMultiplayerChat);
+    return () => {
+      MultiplayerNetworkEngine.instance.off('onChatMessage', handleMultiplayerChat);
+    };
+  }, [activeRoomId, isMinimized]);
+
   useEffect(() => {
     if (!isMinimized) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -103,7 +140,10 @@ export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat, 
       text: clean,
     });
 
-    // 2. Broadcast 3D in-world speech bubble over the avatar!
+    // 2. Broadcast to Multiplayer Network Mesh (3D world & peers)
+    MultiplayerNetworkEngine.instance.sendChatMessage(clean, chatScope === 'proximity');
+
+    // 3. Broadcast 3D in-world speech bubble over the local avatar!
     window.dispatchEvent(
       new CustomEvent('piso-avatar-chat', {
         detail: {
@@ -113,6 +153,11 @@ export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat, 
         },
       })
     );
+
+    // 4. Award Bayanihan community action
+    try {
+      PlayerProgressionEngine.awardAction('help_player', { text: clean });
+    } catch {}
 
     setInputText('');
   };
@@ -197,6 +242,25 @@ export const LiveHUDChatBox: React.FC<LiveHUDChatBoxProps> = ({ onOpenFullChat, 
 
         {/* Action Controls */}
         <div className="flex items-center space-x-1.5">
+          {/* Proximity vs World Chat Scope Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              const nextScope = chatScope === 'world' ? 'proximity' : 'world';
+              setChatScope(nextScope);
+              SoundFX.playBlip();
+            }}
+            title="Toggle between World & Proximity Chat"
+            className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold border transition flex items-center space-x-1 ${
+              chatScope === 'proximity'
+                ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                : 'bg-amber-500/20 border-amber-400/60 text-amber-300'
+            }`}
+          >
+            <span>{chatScope === 'proximity' ? '🔊' : '🌐'}</span>
+            <span>{chatScope === 'proximity' ? 'PROX' : 'WORLD'}</span>
+          </button>
+
           {/* Open Full P2P Console */}
           <button
             type="button"
